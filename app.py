@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from io import BytesIO
 
 # ============================================================
 # MEDLAB AI DIAGNOSTICS HUB
@@ -11,346 +12,219 @@ st.set_page_config(
     page_title="MedLab AI Diagnostics",
     page_icon="🧪",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# -------------------- STYLE --------------------
+# ============================================================
+# STYLE
+# ============================================================
 
 st.markdown("""
 <style>
-.main-title {
-    font-size: 42px;
-    font-weight: 800;
-}
-.subtitle {
-    color: #6b7280;
-    font-size: 18px;
-}
-.result-card {
-    padding: 18px;
-    border-radius: 14px;
-    margin: 10px 0;
-    border: 1px solid #ddd;
-}
+    .main {
+        padding-top: 1rem;
+    }
+
+    .hero {
+        padding: 1.2rem;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #111827, #1f2937);
+        border: 1px solid #374151;
+        margin-bottom: 1rem;
+    }
+
+    .hero h1 {
+        margin-bottom: 0.2rem;
+        font-size: 2.2rem;
+    }
+
+    .hero p {
+        color: #9ca3af;
+        font-size: 1rem;
+    }
+
+    .normal-box {
+        padding: 15px;
+        border-radius: 14px;
+        background: #064e3b;
+        border: 1px solid #10b981;
+        color: white;
+    }
+
+    .warning-box {
+        padding: 15px;
+        border-radius: 14px;
+        background: #78350f;
+        border: 1px solid #f59e0b;
+        color: white;
+    }
+
+    .danger-box {
+        padding: 15px;
+        border-radius: 14px;
+        background: #7f1d1d;
+        border: 1px solid #ef4444;
+        color: white;
+    }
+
+    .small-note {
+        color: #9ca3af;
+        font-size: 0.85rem;
+    }
+
+    div[data-testid="stMetric"] {
+        border: 1px solid #374151;
+        padding: 10px;
+        border-radius: 12px;
+    }
+
+    @media (max-width: 768px) {
+        .hero h1 {
+            font-size: 1.6rem;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# -------------------- HEADER --------------------
+# ============================================================
+# HEADER
+# ============================================================
 
-st.markdown(
-    '<div class="main-title">🧪 MedLab AI Diagnostics Hub</div>',
-    unsafe_allow_html=True
-)
-
-st.markdown(
-    '<div class="subtitle">AI-assisted CBC Clinical Decision Support</div>',
-    unsafe_allow_html=True
-)
+st.markdown("""
+<div class="hero">
+    <h1>🧪 MedLab AI Diagnostics Hub</h1>
+    <p>AI-assisted CBC Clinical Decision Support Platform</p>
+</div>
+""", unsafe_allow_html=True)
 
 st.warning(
-    "⚠️ Ushbu tizim klinik qarorni qo‘llab-quvvatlovchi prototip. "
-    "Yakuniy tashxis va davolash qarori shifokor tomonidan belgilanadi."
+    "⚠️ Ushbu tizim klinik qarorni qo‘llab-quvvatlovchi prototipdir. "
+    "Natijalar laboratoriyaning o‘z reference intervalari va klinik holat "
+    "bilan birgalikda shifokor tomonidan baholanadi."
 )
 
-# -------------------- SESSION --------------------
-
-if "history" not in st.session_state:
-    st.session_state.history = []
-
-if "result" not in st.session_state:
-    st.session_state.result = None
-
-
 # ============================================================
-# REFERENCE INTERVALS
+# PATIENT INFORMATION
 # ============================================================
 
-def get_reference(age, sex):
+st.header("👤 Bemor ma’lumotlari")
 
-    if age < 1:
-        return {
-            "Hb": (9.5, 14.5, "g/dL"),
-            "WBC": (5, 17, "×10⁹/L"),
-            "PLT": (150, 450, "×10⁹/L"),
-            "RBC": (3.0, 5.0, "×10¹²/L"),
-            "MCV": (70, 95, "fL"),
-            "MCH": (23, 31, "pg"),
-            "Neut": (20, 55, "%"),
-            "Lymph": (35, 70, "%"),
-            "Eos": (0, 6, "%")
-        }
+c1, c2, c3 = st.columns(3)
 
-    if age < 5:
-        return {
-            "Hb": (10.5, 14.5, "g/dL"),
-            "WBC": (5, 15, "×10⁹/L"),
-            "PLT": (150, 450, "×10⁹/L"),
-            "RBC": (3.7, 5.3, "×10¹²/L"),
-            "MCV": (70, 86, "fL"),
-            "MCH": (23, 30, "pg"),
-            "Neut": (25, 60, "%"),
-            "Lymph": (30, 65, "%"),
-            "Eos": (0, 6, "%")
-        }
-
-    if age < 13:
-        return {
-            "Hb": (11, 15, "g/dL"),
-            "WBC": (4.5, 13.5, "×10⁹/L"),
-            "PLT": (150, 450, "×10⁹/L"),
-            "RBC": (4.0, 5.2, "×10¹²/L"),
-            "MCV": (75, 95, "fL"),
-            "MCH": (24, 32, "pg"),
-            "Neut": (35, 65, "%"),
-            "Lymph": (25, 55, "%"),
-            "Eos": (0, 6, "%")
-        }
-
-    if age < 18:
-        return {
-            "Hb": (11.5, 16, "g/dL"),
-            "WBC": (4.5, 13, "×10⁹/L"),
-            "PLT": (150, 450, "×10⁹/L"),
-            "RBC": (4.0, 5.5, "×10¹²/L"),
-            "MCV": (78, 98, "fL"),
-            "MCH": (25, 33, "pg"),
-            "Neut": (40, 70, "%"),
-            "Lymph": (20, 50, "%"),
-            "Eos": (0, 6, "%")
-        }
-
-    if sex == "Ayol":
-        return {
-            "Hb": (12, 16, "g/dL"),
-            "WBC": (4, 10, "×10⁹/L"),
-            "PLT": (150, 400, "×10⁹/L"),
-            "RBC": (3.8, 5.2, "×10¹²/L"),
-            "MCV": (80, 100, "fL"),
-            "MCH": (27, 33, "pg"),
-            "Neut": (40, 75, "%"),
-            "Lymph": (20, 45, "%"),
-            "Eos": (0, 6, "%")
-        }
-
-    return {
-        "Hb": (13, 17.5, "g/dL"),
-        "WBC": (4, 10, "×10⁹/L"),
-        "PLT": (150, 400, "×10⁹/L"),
-        "RBC": (4.3, 5.8, "×10¹²/L"),
-        "MCV": (80, 100, "fL"),
-        "MCH": (27, 33, "pg"),
-        "Neut": (40, 75, "%"),
-        "Lymph": (20, 45, "%"),
-        "Eos": (0, 6, "%")
-    }
-
-
-# ============================================================
-# ANALYSIS ENGINE
-# ============================================================
-
-def analyze(data, ref, symptoms):
-
-    findings = []
-    recommendations = []
-    abnormal = []
-
-    for key, value in data.items():
-
-        low, high, unit = ref[key]
-
-        if value < low:
-            abnormal.append(key)
-            findings.append(
-                f"⬇️ {key}: {value:g} {unit} "
-                f"(reference {low:g}–{high:g})"
-            )
-
-        elif value > high:
-            abnormal.append(key)
-            findings.append(
-                f"⬆️ {key}: {value:g} {unit} "
-                f"(reference {low:g}–{high:g})"
-            )
-
-    # -------- ANEMIA PATTERNS --------
-
-    if data["Hb"] < ref["Hb"][0]:
-
-        if data["MCV"] < ref["MCV"][0]:
-            findings.append(
-                "🔎 Pattern: mikrositar anemiya ehtimoli."
-            )
-
-            recommendations.append(
-                "Ferritin, serum iron va transferrin saturation "
-                "kabi temir almashinuvi ko‘rsatkichlarini ko‘rib chiqish."
-            )
-
-        elif data["MCV"] > ref["MCV"][1]:
-            findings.append(
-                "🔎 Pattern: makrositar anemiya ehtimoli."
-            )
-
-            recommendations.append(
-                "Vitamin B12 va folat holatini klinik kontekstda baholash."
-            )
-
-        else:
-            findings.append(
-                "🔎 Gemoglobin pasaygan — anemiya patterni."
-            )
-
-    # -------- INFECTION PATTERNS --------
-
-    if (
-        data["WBC"] > ref["WBC"][1]
-        and data["Neut"] > ref["Neut"][1]
-    ):
-        findings.append(
-            "🔎 Leukotsitoz + neytrofil ustunligi."
-        )
-
-        recommendations.append(
-            "Infeksiya yoki yallig‘lanish belgilarini klinik baholash."
-        )
-
-    if (
-        data["WBC"] > ref["WBC"][1]
-        and data["Lymph"] > ref["Lymph"][1]
-    ):
-        findings.append(
-            "🔎 Leukotsitoz + limfotsit ustunligi."
-        )
-
-        recommendations.append(
-            "Virusli/infeksion sabablarni klinik kontekstda baholash."
-        )
-
-    # -------- THROMBOCYTES --------
-
-    if data["PLT"] < 100:
-
-        findings.append(
-            "⚠️ Trombotsitlar sezilarli kamaygan."
-        )
-
-        recommendations.append(
-            "Qon ketish belgilari, CBCni qayta tekshirish "
-            "va periferik qon surtmasini klinik baholash."
-        )
-
-    if data["PLT"] < 50:
-
-        findings.append(
-            "🚨 Trombotsit <50 ×10⁹/L — yuqori e’tibor talab qiladi."
-        )
-
-    # -------- EOSINOPHILS --------
-
-    if data["Eos"] > ref["Eos"][1]:
-
-        findings.append(
-            "🔎 Eozinofillar yuqori."
-        )
-
-        recommendations.append(
-            "Allergik, parazitar va boshqa sabablarni "
-            "klinik ma’lumotlar bilan baholash."
-        )
-
-    # -------- SYMPTOMS --------
-
-    s = symptoms.lower()
-
-    if any(x in s for x in ["isitma", "harorat", "38", "39", "40"]):
-
-        recommendations.append(
-            "Isitma mavjud: bemorning umumiy holati va "
-            "infeksiya o‘chog‘ini klinik baholash."
-        )
-
-    if any(x in s for x in ["ko‘karish", "qon ketish", "burundan qon"]):
-
-        recommendations.append(
-            "Qon ketish yoki ko‘karish mavjud bo‘lsa, "
-            "trombotsitlar va koagulogramma klinik jihatdan baholanadi."
-        )
-
-    # -------- SEVERITY --------
-
-    if data["PLT"] < 50 or data["WBC"] < 2:
-        severity = "🔴 Yuqori e’tibor"
-
-    elif len(abnormal) >= 4:
-        severity = "🟠 Qo‘shimcha baholash"
-
-    elif len(abnormal) > 0:
-        severity = "🟡 Yengil o‘zgarish"
-
-    else:
-        severity = "🟢 Normal diapazon"
-
-    if not findings:
-        findings.append(
-            "✅ Kiritilgan CBC ko‘rsatkichlarida sezilarli og‘ish aniqlanmadi."
-        )
-
-    if not recommendations:
-        recommendations.append(
-            "CBC natijalarini shikoyatlar, anamnez va fizik ko‘rik "
-            "bilan birgalikda baholash."
-        )
-
-    return findings, recommendations, severity, abnormal
-
-
-# ============================================================
-# SIDEBAR
-# ============================================================
-
-with st.sidebar:
-
-    st.header("👤 Bemor ma’lumotlari")
-
-    name = st.text_input(
-        "Bemor ismi",
+with c1:
+    patient_name = st.text_input(
+        "Bemor F.I.Sh.",
         placeholder="Ism Familiya"
     )
 
+with c2:
     age = st.number_input(
         "Yosh",
         min_value=0,
         max_value=120,
-        value=30
+        value=30,
+        step=1
     )
 
+with c3:
     sex = st.selectbox(
         "Jins",
         ["Erkak", "Ayol"]
     )
 
-    symptoms = st.text_area(
-        "Shikoyatlar / klinik ma’lumot",
-        placeholder="Masalan: isitma, holsizlik, yo‘tal..."
-    )
+complaints = st.text_area(
+    "Shikoyatlar / klinik ma’lumot",
+    placeholder="Masalan: holsizlik, isitma, yo‘tal, bosh aylanishi..."
+)
 
-    st.divider()
+st.divider()
 
-    st.caption(
-        "Reference intervalari prototip uchun berilgan. "
-        "Klinik tizimda laboratoriyaning o‘z reference intervalari "
-        "qo‘llanishi kerak."
-    )
+# ============================================================
+# REFERENCE RANGE
+# ============================================================
 
+def get_reference(age, sex):
+
+    # Adult ranges
+    if age >= 18:
+
+        if sex == "Erkak":
+            return {
+                "Hb": (13.0, 17.0),
+                "WBC": (4.0, 10.0),
+                "RBC": (4.5, 5.9),
+                "PLT": (150, 400),
+                "NEU": (40, 75),
+                "LYM": (20, 45),
+                "MCV": (80, 100),
+                "MCH": (27, 33),
+                "MCHC": (32, 36),
+                "RDW": (11.5, 14.5)
+            }
+
+        return {
+            "Hb": (12.0, 15.5),
+            "WBC": (4.0, 10.0),
+            "RBC": (4.0, 5.2),
+            "PLT": (150, 400),
+            "NEU": (40, 75),
+            "LYM": (20, 45),
+            "MCV": (80, 100),
+            "MCH": (27, 33),
+            "MCHC": (32, 36),
+            "RDW": (11.5, 14.5)
+        }
+
+    # Pediatric simplified prototype ranges
+    if age < 1:
+        return {
+            "Hb": (10.0, 18.0),
+            "WBC": (5.0, 19.0),
+            "RBC": (3.5, 5.5),
+            "PLT": (150, 450),
+            "NEU": (15, 45),
+            "LYM": (40, 75),
+            "MCV": (70, 110),
+            "MCH": (23, 37),
+            "MCHC": (30, 36),
+            "RDW": (11.5, 18)
+        }
+
+    if age < 5:
+        return {
+            "Hb": (11.0, 14.0),
+            "WBC": (5.0, 15.0),
+            "RBC": (3.9, 5.3),
+            "PLT": (150, 450),
+            "NEU": (25, 60),
+            "LYM": (30, 65),
+            "MCV": (70, 86),
+            "MCH": (24, 30),
+            "MCHC": (31, 36),
+            "RDW": (11.5, 15)
+        }
+
+    return {
+        "Hb": (11.5, 15.0),
+        "WBC": (4.5, 13.5),
+        "RBC": (4.0, 5.3),
+        "PLT": (150, 450),
+        "NEU": (30, 65),
+        "LYM": (25, 60),
+        "MCV": (75, 95),
+        "MCH": (25, 32),
+        "MCHC": (31, 36),
+        "RDW": (11.5, 15)
+    }
+
+
+ref = get_reference(age, sex)
 
 # ============================================================
 # CBC INPUT
 # ============================================================
 
 st.header("🩸 CBC natijalarini kiriting")
-
-ref = get_reference(age, sex)
 
 col1, col2 = st.columns(2)
 
@@ -360,183 +234,205 @@ with col1:
 
     hb = st.number_input(
         "Gemoglobin (g/dL)",
-        0.0, 30.0, 13.0, 0.1
+        min_value=0.0,
+        max_value=30.0,
+        value=13.0,
+        step=0.1
     )
 
     rbc = st.number_input(
         "RBC (×10¹²/L)",
-        0.0, 10.0, 4.5, 0.01
+        min_value=0.0,
+        max_value=10.0,
+        value=4.5,
+        step=0.1
     )
 
     mcv = st.number_input(
         "MCV (fL)",
-        0.0, 150.0, 90.0, 0.1
+        min_value=0.0,
+        max_value=150.0,
+        value=90.0,
+        step=0.1
     )
 
     mch = st.number_input(
         "MCH (pg)",
-        0.0, 60.0, 30.0, 0.1
+        min_value=0.0,
+        max_value=50.0,
+        value=30.0,
+        step=0.1
     )
 
+    mchc = st.number_input(
+        "MCHC (g/dL)",
+        min_value=0.0,
+        max_value=50.0,
+        value=34.0,
+        step=0.1
+    )
+
+    rdw = st.number_input(
+        "RDW (%)",
+        min_value=0.0,
+        max_value=40.0,
+        value=13.0,
+        step=0.1
+    )
 
 with col2:
 
-    st.subheader("⚪ Leykotsit va trombotsit")
+    st.subheader("⚪ Leykotsit qatori")
 
     wbc = st.number_input(
         "WBC (×10⁹/L)",
-        0.0, 100.0, 7.0, 0.1
+        min_value=0.0,
+        max_value=100.0,
+        value=7.0,
+        step=0.1
     )
 
     neut = st.number_input(
         "Neutrofil (%)",
-        0.0, 100.0, 55.0, 0.5
+        min_value=0.0,
+        max_value=100.0,
+        value=55.0,
+        step=0.1
     )
 
     lymph = st.number_input(
-        "Limfosit (%)",
-        0.0, 100.0, 35.0, 0.5
+        "Limfotsit (%)",
+        min_value=0.0,
+        max_value=100.0,
+        value=35.0,
+        step=0.1
     )
 
-    eos = st.number_input(
-        "Eozinofil (%)",
-        0.0, 100.0, 2.0, 0.5
-    )
+    st.subheader("🟣 Trombotsit qatori")
 
     plt = st.number_input(
         "Trombotsit (×10⁹/L)",
-        0.0, 1500.0, 250.0, 1.0
+        min_value=0.0,
+        max_value=1000.0,
+        value=250.0,
+        step=1.0
     )
 
+# ============================================================
+# ANALYSIS FUNCTIONS
+# ============================================================
+
+def flag(value, low, high):
+    if value < low:
+        return "PAST"
+    elif value > high:
+        return "YUQORI"
+    return "NORMAL"
+
+
+def flag_icon(status):
+    if status == "NORMAL":
+        return "🟢"
+    if status == "PAST":
+        return "🔵"
+    return "🔴"
+
+
+results = {
+    "Gemoglobin": {
+        "value": hb,
+        "unit": "g/dL",
+        "range": ref["Hb"],
+        "status": flag(hb, *ref["Hb"])
+    },
+    "RBC": {
+        "value": rbc,
+        "unit": "×10¹²/L",
+        "range": ref["RBC"],
+        "status": flag(rbc, *ref["RBC"])
+    },
+    "MCV": {
+        "value": mcv,
+        "unit": "fL",
+        "range": ref["MCV"],
+        "status": flag(mcv, *ref["MCV"])
+    },
+    "MCH": {
+        "value": mch,
+        "unit": "pg",
+        "range": ref["MCH"],
+        "status": flag(mch, *ref["MCH"])
+    },
+    "MCHC": {
+        "value": mchc,
+        "unit": "g/dL",
+        "range": ref["MCHC"],
+        "status": flag(mchc, *ref["MCHC"])
+    },
+    "RDW": {
+        "value": rdw,
+        "unit": "%",
+        "range": ref["RDW"],
+        "status": flag(rdw, *ref["RDW"])
+    },
+    "WBC": {
+        "value": wbc,
+        "unit": "×10⁹/L",
+        "range": ref["WBC"],
+        "status": flag(wbc, *ref["WBC"])
+    },
+    "Neutrofil": {
+        "value": neut,
+        "unit": "%",
+        "range": ref["NEU"],
+        "status": flag(neut, *ref["NEU"])
+    },
+    "Limfotsit": {
+        "value": lymph,
+        "unit": "%",
+        "range": ref["LYM"],
+        "status": flag(lymph, *ref["LYM"])
+    },
+    "Trombotsit": {
+        "value": plt,
+        "unit": "×10⁹/L",
+        "range": ref["PLT"],
+        "status": flag(plt, *ref["PLT"])
+    }
+}
 
 # ============================================================
 # ANALYZE BUTTON
 # ============================================================
 
-if st.button(
-    "🔬 CBC NI AI YORDAMIDA TAHLIL QILISH",
-    type="primary",
-    use_container_width=True
-):
+st.divider()
 
-    data = {
-        "Hb": hb,
-        "WBC": wbc,
-        "PLT": plt,
-        "RBC": rbc,
-        "MCV": mcv,
-        "MCH": mch,
-        "Neut": neut,
-        "Lymph": lymph,
-        "Eos": eos
-    }
+analyze = st.button(
+    "🔬 CBC NI PROFESSIONAL TAHLIL QILISH",
+    use_container_width=True,
+    type="primary"
+)
 
-    findings, recommendations, severity, abnormal = analyze(
-        data,
-        ref,
-        symptoms
-    )
+if analyze:
 
-    result = {
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "name": name,
-        "age": age,
-        "sex": sex,
-        "data": data,
-        "findings": findings,
-        "recommendations": recommendations,
-        "severity": severity,
-        "abnormal": abnormal
-    }
+    # --------------------------------------------------------
+    # TABLE
+    # --------------------------------------------------------
 
-    st.session_state.result = result
-    st.session_state.history.append(result)
-
-
-# ============================================================
-# RESULT
-# ============================================================
-
-if st.session_state.result:
-
-    result = st.session_state.result
-
-    st.divider()
-
-    st.header("📊 Tahlil natijasi")
-
-    st.write(
-        f"**Bemor:** {result['name'] or 'Ko‘rsatilmagan'}  \n"
-        f"**Yosh:** {result['age']}  \n"
-        f"**Jins:** {result['sex']}"
-    )
-
-    # Severity
-    severity = result["severity"]
-
-    if "Normal" in severity:
-        st.success(
-            "🟢 Umumiy holat: CBC ko‘rsatkichlari "
-            "tanlangan reference diapazonga mos."
-        )
-
-    elif "Yengil" in severity:
-        st.warning(
-            "🟡 Umumiy holat: ayrim laborator o‘zgarishlar mavjud."
-        )
-
-    elif "Qo‘shimcha" in severity:
-        st.warning(
-            "🟠 Bir nechta ko‘rsatkichlarda og‘ish mavjud."
-        )
-
-    else:
-        st.error(
-            "🔴 Yuqori e’tibor talab qiluvchi laborator o‘zgarish mavjud."
-        )
-
-    # Metrics
-    c1, c2, c3 = st.columns(3)
-
-    c1.metric(
-        "CBC ko‘rsatkichlari",
-        len(result["data"])
-    )
-
-    c2.metric(
-        "Normal",
-        len(result["data"]) - len(result["abnormal"])
-    )
-
-    c3.metric(
-        "Og‘ish",
-        len(result["abnormal"])
-    )
-
-    # Table
-    st.subheader("🧾 CBC panel")
+    st.header("📊 CBC natijalari")
 
     rows = []
 
-    for key, value in result["data"].items():
+    for name, item in results.items():
 
-        low, high, unit = ref[key]
-
-        if value < low:
-            status = "⬇️ Past"
-
-        elif value > high:
-            status = "⬆️ Yuqori"
-
-        else:
-            status = "✅ Normal"
+        low, high = item["range"]
 
         rows.append({
-            "Ko‘rsatkich": key,
-            "Natija": value,
-            "Birlik": unit,
-            "Reference": f"{low:g} – {high:g}",
-            "Holat": status
+            "Ko‘rsatkich": name,
+            "Natija": item["value"],
+            "Birlik": item["unit"],
+            "Reference": f"{low} – {high}",
+            "Holat": f"{flag_icon(item['status'])} {item['status']}"
         })
 
     df = pd.DataFrame(rows)
@@ -547,124 +443,373 @@ if st.session_state.result:
         hide_index=True
     )
 
-    # Chart
-    st.subheader("📈 CBC profili")
+    # --------------------------------------------------------
+    # SUMMARY
+    # --------------------------------------------------------
 
-    chart = pd.DataFrame({
-        "Ko‘rsatkich": list(result["data"].keys()),
-        "Natija": list(result["data"].values())
-    })
+    abnormal = [
+        name for name, item in results.items()
+        if item["status"] != "NORMAL"
+    ]
 
-    st.bar_chart(
-        chart.set_index("Ko‘rsatkich")
-    )
+    st.header("🧠 Klinik interpretatsiya")
 
-    # Findings
-    st.subheader("🔎 Aniqlangan o‘zgarishlar")
+    if len(abnormal) == 0:
 
-    for item in result["findings"]:
+        st.markdown("""
+        <div class="normal-box">
+        <h3>🟢 Sezilarli CBC og‘ishi aniqlanmadi</h3>
+        Kiritilgan ko‘rsatkichlar tanlangan yosh va jins uchun
+        ishlatilayotgan prototip reference intervalari doirasida.
+        </div>
+        """, unsafe_allow_html=True)
+
+    else:
+
         st.markdown(
-            f'<div class="result-card">{item}</div>',
+            f"""
+            <div class="warning-box">
+            <h3>🟡 E’tibor talab qiluvchi ko‘rsatkichlar: {len(abnormal)}</h3>
+            Quyidagi laborator ko‘rsatkichlarda reference intervaldan
+            og‘ish aniqlandi.
+            </div>
+            """,
             unsafe_allow_html=True
         )
 
-    # Recommendations
-    st.subheader("💡 Tavsiyalar")
+        for name in abnormal:
 
-    for item in result["recommendations"]:
-        st.info(item)
+            item = results[name]
+            low, high = item["range"]
 
-    # Report
-    report = f"""
-MEDLAB AI DIAGNOSTICS HUB
-CBC CLINICAL REPORT
-==============================
+            if item["status"] == "PAST":
 
-Sana: {result['date']}
-Bemor: {result['name'] or 'Ko‘rsatilmagan'}
-Yosh: {result['age']}
-Jins: {result['sex']}
+                st.write(
+                    f"🔵 **{name} past:** "
+                    f"{item['value']} {item['unit']} "
+                    f"(reference: {low}–{high})"
+                )
 
-UMUMIY BAHO:
-{result['severity']}
+            else:
 
-CBC NATIJALARI:
-"""
+                st.write(
+                    f"🔴 **{name} yuqori:** "
+                    f"{item['value']} {item['unit']} "
+                    f"(reference: {low}–{high})"
+                )
 
-    for key, value in result["data"].items():
+    # --------------------------------------------------------
+    # CLINICAL PATTERN DETECTION
+    # --------------------------------------------------------
 
-        low, high, unit = ref[key]
+    st.subheader("🔎 Ehtimoliy klinik yo‘nalishlar")
 
-        report += (
-            f"\n{key}: {value:g} {unit} "
-            f"(Reference: {low:g}–{high:g})"
+    findings = []
+    recommendations = []
+
+    # Anemia pattern
+    if hb < ref["Hb"][0]:
+
+        findings.append(
+            "Gemoglobin kamaygan — anemiya mavjudligini klinik jihatdan baholash kerak."
         )
 
-    report += "\n\nANIQLANGAN HOLATLAR:\n"
+        if mcv < ref["MCV"][0]:
 
-    for item in result["findings"]:
-        report += f"\n- {item}"
+            findings.append(
+                "Hb pasayishi + MCV pastligi mikrotsitar anemiya yo‘nalishini ko‘rsatishi mumkin."
+            )
 
-    report += "\n\nTAVSIYALAR:\n"
+            recommendations.append(
+                "Temir almashinuvi: ferritin, transferrin saturation va zarurat bo‘lsa CRP ko‘rib chiqilsin."
+            )
 
-    for item in result["recommendations"]:
-        report += f"\n- {item}"
+        elif mcv > ref["MCV"][1]:
 
-    report += """
-    
-IMPORTANT:
-Ushbu hisobot klinik qarorni qo‘llab-quvvatlovchi
-prototip tomonidan yaratilgan. Yakuniy tashxis va
-davolash qarori malakali tibbiy mutaxassis tomonidan
-belgilanadi.
+            findings.append(
+                "Hb pasayishi + MCV yuqoriligi makrotsitar anemiya yo‘nalishini ko‘rsatishi mumkin."
+            )
+
+            recommendations.append(
+                "Vitamin B12 va folat holatini klinik vaziyatga qarab baholash."
+            )
+
+        else:
+
+            findings.append(
+                "Normotsitar anemiya ehtimoli mavjud."
+            )
+
+            recommendations.append(
+                "Qon yo‘qotilishi, surunkali kasalliklar va boshqa sabablar klinik jihatdan baholansin."
+            )
+
+    # Leukocytosis
+    if wbc > ref["WBC"][1]:
+
+        findings.append(
+            "Leykotsitlar soni yuqori — leykotsitoz."
+        )
+
+        recommendations.append(
+            "Infeksiya, yallig‘lanish, stress va dori ta’siri klinik belgilar bilan birga baholansin."
+        )
+
+    # Leukopenia
+    if wbc < ref["WBC"][0]:
+
+        findings.append(
+            "Leykotsitlar soni past — leykopeniya."
+        )
+
+        recommendations.append(
+            "Virusli infeksiyalar, dori ta’siri va boshqa sabablarni klinik vaziyatga qarab baholash."
+        )
+
+    # Neutrophilia
+    if neut > ref["NEU"][1]:
+
+        findings.append(
+            "Neytrofillar ulushi yuqori — neytrofil yo‘nalishdagi o‘zgarish."
+        )
+
+    # Neutropenia
+    if neut < ref["NEU"][0]:
+
+        findings.append(
+            "Neytrofillar ulushi past — neytropeniya ehtimoli."
+        )
+
+    # Lymphocytosis
+    if lymph > ref["LYM"][1]:
+
+        findings.append(
+            "Limfotsitlar ulushi yuqori — limfotsitoz."
+        )
+
+    # Thrombocytopenia
+    if plt < ref["PLT"][0]:
+
+        findings.append(
+            "Trombotsitlar soni past — trombotsitopeniya."
+        )
+
+        recommendations.append(
+            "Qon ketish belgilari bo‘lsa shoshilinch klinik baholash zarur; "
+            "natijani qayta tekshirish va sababini aniqlash ko‘rib chiqilsin."
+        )
+
+    # Thrombocytosis
+    if plt > ref["PLT"][1]:
+
+        findings.append(
+            "Trombotsitlar soni yuqori — trombotsitoz."
+        )
+
+        recommendations.append(
+            "Reaktiv sabablar, yallig‘lanish va temir tanqisligi klinik vaziyatga qarab baholansin."
+        )
+
+    # --------------------------------------------------------
+    # RESULTS
+    # --------------------------------------------------------
+
+    if not findings:
+
+        st.success(
+            "🔬 Kiritilgan CBC ko‘rsatkichlarida ushbu prototip qoidalari "
+            "bo‘yicha muhim klinik pattern aniqlanmadi."
+        )
+
+    else:
+
+        for finding in findings:
+            st.write("• " + finding)
+
+    # --------------------------------------------------------
+    # RECOMMENDATIONS
+    # --------------------------------------------------------
+
+    st.subheader("💡 Tavsiyalar")
+
+    if recommendations:
+
+        for recommendation in recommendations:
+            st.write("• " + recommendation)
+
+    else:
+
+        st.write(
+            "• Klinik holat, anamnez va laboratoriyaning o‘z reference "
+            "intervalari bilan birgalikda baholash."
+        )
+
+    # --------------------------------------------------------
+    # OVERALL STATUS
+    # --------------------------------------------------------
+
+    st.header("📌 Umumiy baho")
+
+    severe = False
+
+    if plt < 50:
+        severe = True
+
+    if hb < 8:
+        severe = True
+
+    if wbc < 2 or wbc > 30:
+        severe = True
+
+    if severe:
+
+        st.markdown("""
+        <div class="danger-box">
+        <h3>🔴 Muhim laborator og‘ish</h3>
+        Ayrim ko‘rsatkichlar sezilarli darajada o‘zgargan.
+        Klinik holatga qarab shifokor tomonidan tezkor baholash talab qilinishi mumkin.
+        </div>
+        """, unsafe_allow_html=True)
+
+    elif abnormal:
+
+        st.warning(
+            "🟡 Laborator ko‘rsatkichlarda og‘ishlar mavjud. "
+            "Klinik kontekst bilan birgalikda baholang."
+        )
+
+    else:
+
+        st.success(
+            "🟢 CBC prototip reference intervalari bo‘yicha sezilarli og‘ishsiz."
+        )
+
+    # --------------------------------------------------------
+    # PDF REPORT
+    # --------------------------------------------------------
+
+    st.divider()
+    st.header("📄 Hisobot")
+
+    report_text = f"""
+MEDLAB AI DIAGNOSTICS HUB
+Professional CBC Clinical Decision Support
+
+Sana: {datetime.now().strftime("%Y-%m-%d %H:%M")}
+
+Bemor: {patient_name or "Ko‘rsatilmagan"}
+Yosh: {age}
+Jins: {sex}
+
+Klinik ma’lumot:
+{complaints or "Ko‘rsatilmagan"}
+
+CBC NATIJALARI
+----------------------------------------
 """
 
-    st.download_button(
-        "📄 CBC hisobotini yuklab olish",
-        data=report,
-        file_name="MedLab_CBC_Report.txt",
-        mime="text/plain",
-        use_container_width=True
-    )
+    for name, item in results.items():
 
+        low, high = item["range"]
 
-# ============================================================
-# HISTORY
-# ============================================================
+        report_text += (
+            f"{name}: {item['value']} {item['unit']} | "
+            f"Reference: {low}-{high} | {item['status']}\n"
+        )
 
-st.divider()
+    report_text += "\nKLINIK INTERPRETATSIYA\n----------------------------------------\n"
 
-st.header("🗂️ Tahlil tarixi")
+    if findings:
 
-if st.session_state.history:
+        for finding in findings:
+            report_text += "- " + finding + "\n"
 
-    history = []
+    else:
 
-    for item in st.session_state.history:
+        report_text += "- Sezilarli pattern aniqlanmadi.\n"
 
-        history.append({
-            "Sana": item["date"],
-            "Bemor": item["name"] or "—",
-            "Yosh": item["age"],
-            "Jins": item["sex"],
-            "Baho": item["severity"],
-            "Og‘ish": len(item["abnormal"])
-        })
+    report_text += "\nTAVSIYALAR\n----------------------------------------\n"
 
-    st.dataframe(
-        pd.DataFrame(history),
-        use_container_width=True,
-        hide_index=True
-    )
+    for recommendation in recommendations:
 
-    if st.button("🗑️ Tarixni tozalash"):
-        st.session_state.history = []
-        st.rerun()
+        report_text += "- " + recommendation + "\n"
 
-else:
+    report_text += """
+    
+MUHIM:
+Ushbu dastur klinik qarorni qo‘llab-quvvatlovchi prototip hisoblanadi.
+Yakuniy tashxis va davolash qarori shifokor tomonidan belgilanadi.
+Reference intervalari laboratoriya usuliga qarab farq qilishi mumkin.
+"""
 
-    st.caption("Hozircha tahlil tarixi mavjud emas.")
+    pdf_bytes = None
 
+    try:
+
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas
+
+        buffer = BytesIO()
+
+        pdf = canvas.Canvas(buffer, pagesize=A4)
+
+        width, height = A4
+        y = height - 50
+
+        pdf.setFont("Helvetica-Bold", 16)
+        pdf.drawString(
+            40,
+            y,
+            "MedLab AI Diagnostics Hub"
+        )
+
+        y -= 30
+
+        pdf.setFont("Helvetica", 9)
+
+        for line in report_text.split("\n"):
+
+            if y < 40:
+
+                pdf.showPage()
+                y = height - 50
+                pdf.setFont("Helvetica", 9)
+
+            pdf.drawString(
+                40,
+                y,
+                line[:115]
+            )
+
+            y -= 13
+
+        pdf.save()
+
+        pdf_bytes = buffer.getvalue()
+
+    except Exception:
+
+        pdf_bytes = None
+
+    if pdf_bytes:
+
+        st.download_button(
+            "📥 PDF hisobotni yuklab olish",
+            data=pdf_bytes,
+            file_name="MedLab_CBC_Report.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
+
+    else:
+
+        st.download_button(
+            "📥 Hisobotni yuklab olish",
+            data=report_text,
+            file_name="MedLab_CBC_Report.txt",
+            mime="text/plain",
+            use_container_width=True
+        )
 
 # ============================================================
 # FOOTER
@@ -673,6 +818,10 @@ else:
 st.divider()
 
 st.caption(
-    "MedLab AI Diagnostics Hub — Professional CBC Clinical "
-    "Decision-Support MVP | Prototype"
-            )
+    "🧪 MedLab AI Diagnostics Hub — Professional CBC Clinical Decision Support MVP"
+)
+
+st.caption(
+    "Prototype only • Laboratory reference intervals should be verified locally • "
+    "Final clinical decisions remain with a qualified healthcare professional."
+    )
