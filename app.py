@@ -1024,7 +1024,7 @@ elif analysis_type == "🧬 Biokimyoviy qon tahlili":
             value=4.5
         )
 
-        if st.button("🔍 Biokimyoni AI yordamida tahlil qilish"):
+    if st.button("🔍 Biokimyoni AI yordamida tahlil qilish"):
 
         client = OpenAI(
             api_key=st.secrets["OPENAI_API_KEY"]
@@ -1043,43 +1043,39 @@ elif analysis_type == "🧬 Biokimyoviy qon tahlili":
         Umumiy xolesterin: {cholesterol} mmol/L
         """
 
-        with st.spinner("🧠 AI biokimyoviy natijalarni tahlil qilmoqda..."):
+        with st.spinner("🧠 AI biokimyoviy tahlilni baholamoqda..."):
 
             response = client.responses.create(
                 model="gpt-4o-mini",
                 input=f"""
                 Siz MedLab AI Diagnostics klinik qarorlarni
-                qo'llab-quvvatlash tizimisiz.
+                qo'llab-quvvatlovchi tizimisiz.
 
-                Quyidagi biokimyoviy qon tahlilini klinik
-                qarorlarni qo'llab-quvvatlash nuqtai nazaridan
-                tahlil qiling.
+                Quyidagi biokimyoviy qon tahlilini klinik jihatdan
+                ehtiyotkorlik bilan tahlil qiling.
 
                 {patient_context}
 
-                Javobni o'zbek tilida va quyidagi tartibda bering:
+                Javobni o'zbek tilida bering.
+
+                Quyidagi tartibda javob bering:
 
                 1. 📊 Umumiy baholash
                 2. 🔎 Muhim og'ishlar
                 3. 🧩 Ehtimoliy klinik yo'nalishlar
                 4. 🧪 Tavsiya etiladigan qo'shimcha tekshiruvlar
-                5. 👨‍⚕️ Shifokor uchun qisqa klinik izoh
+                5. 👨‍⚕️ Shifokor uchun qisqa xulosa
 
-                Har bir natijani boshqa ko'rsatkichlar bilan
-                birgalikda baholang.
-
-                Faqat bitta laborator ko'rsatkich asosida tashxis
+                Har bir natijani birgalikda baholang.
+                Bitta laborator ko'rsatkich asosida yakuniy tashxis
                 qo'ymang.
 
-                Tashxisni qat'iy tasdiqlamang. Ehtimoliy klinik
-                yo'nalish sifatida ifodalang.
+                Me'yorlar laboratoriya usuli, bemorning yoshi, jinsi
+                va klinik holatiga qarab farq qilishi mumkin.
 
-                Natijalar laboratoriya referens intervali,
-                bemorning yoshi, jinsi, simptomlari va klinik
-                holatiga qarab farq qilishi mumkinligini ko'rsating.
-
-                Bu tizim shifokor qarorini almashtirmaydi.
-                """,
+                Tashxisni qat'iy tasdiqlamang va dori buyurishni
+                shifokor o'rniga bajarmang.
+                """
             )
 
         ai_result = response.output_text
@@ -1089,11 +1085,10 @@ elif analysis_type == "🧬 Biokimyoviy qon tahlili":
         st.markdown(ai_result)
 
         st.info(
-            "ℹ️ AI xulosasi klinik qarorni qo'llab-quvvatlash "
-            "uchun mo'ljallangan. Yakuniy tashxis va davolash "
-            "qarorini shifokor belgilaydi."
+            "ℹ️ AI xulosasi klinik qarorni qo'llab-quvvatlash uchun "
+            "mo'ljallangan. Yakuniy tashxis va davolash qarorini "
+            "shifokor belgilaydi."
         )
-
 
 st.caption(
     "⚠️ MedLab AI Diagnostics — klinik qarorlarni qo'llab-quvvatlovchi "
