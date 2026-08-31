@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from openai import OpenAI
 from datetime import datetime
 from io import BytesIO
 from PIL import Image
