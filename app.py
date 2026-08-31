@@ -968,7 +968,67 @@ if analysis_type == "🧪 UAT — Umumiy siydik tahlili":
                 st.write("•", recommendation)
 
 
-elif analysis_type == "🧬 Biokimyoviy qon tahlili":
+        if st.button("🤖 UAT ni AI yordamida klinik tahlil qilish"):
+
+            client = OpenAI(
+                api_key=st.secrets["OPENAI_API_KEY"]
+            )
+
+            urine_context = f"""
+Bemorning umumiy siydik tahlili (UAT) natijalari:
+
+pH: {ph}
+Nisbiy zichlik: {specific_gravity}
+Oqsil: {protein}
+Glyukoza: {glucose}
+Qon/eritrotsit: {blood}
+Leykotsitlar: {leukocytes} ko'rish maydonida
+
+Tizim tomonidan aniqlangan og'ishlar:
+{chr(10).join(urine_findings) if urine_findings else "Sezilarli og'ish aniqlanmadi."}
+"""
+
+            with st.spinner("🧠 AI UAT natijalarini klinik tahlil qilmoqda..."):
+
+                response = client.responses.create(
+                    model="gpt-4o-mini",
+                    input=f"""
+Siz MedLab AI Diagnostics klinik qarorlarni qo'llab-quvvatlash tizimisiz.
+
+Quyidagi umumiy siydik tahlili natijalarini klinik nuqtai nazardan
+ehtiyotkorlik bilan interpretatsiya qiling.
+
+{urine_context}
+
+Javobni O'ZBEK TILIDA quyidagi tartibda bering:
+
+1. 📊 Umumiy baholash
+2. 🔎 Muhim laborator o'zgarishlar
+3. 🧩 Ehtimoliy klinik yo'nalishlar
+4. 💡 Tavsiya etiladigan keyingi tekshiruvlar
+5. 👨‍⚕️ Shifokor uchun qisqa xulosa
+
+Muhim:
+- Tashxisni qat'iy tasdiqlamang.
+- Faqat laborator natijalar asosida ehtimoliy yo'nalishlarni ko'rsating.
+- Bemorning yoshi, jinsi, simptomlari va laboratoriya referenslari hisobga
+  olinishi kerakligini ta'kidlang.
+- Yakuniy klinik qarorni shifokor qabul qiladi.
+"""
+                )
+
+            ai_urine_result = response.output_text
+
+            st.subheader("🤖 MedLab AI — UAT klinik interpretatsiyasi")
+
+            st.markdown(ai_urine_result)
+
+            st.info(
+                "ℹ️ AI xulosasi klinik qarorni qo'llab-quvvatlash uchun "
+                "mo'ljallangan. Yakuniy tashxis va davolash qarorini "
+                "shifokor belgilaydi."
+        )
+            elif analysis_type == "🧬 Biokimyoviy qon tahlili":
 
     st.subheader("🧬 Biokimyoviy qon tahlili")
 
