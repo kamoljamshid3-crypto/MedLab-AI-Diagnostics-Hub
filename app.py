@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from io import BytesIO
-
+from PIL import Image
 # ============================================================
 # MEDLAB AI DIAGNOSTICS HUB
 # Professional CBC Clinical Decision Support MVP
@@ -14,8 +14,20 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+logo = Image.open("assets/medlab_logo.png.jpg")
+col1, col2, col3 = st.columns([1, 2, 1])
 
-# ============================================================
+with col2:
+    st.image(logo, width=260)
+
+st.markdown("""
+<div style="text-align:center; margin-top:-15px;">
+    <h1 style="margin-bottom:5px;">MedLab AI Diagnostics</h1>
+    <p style="font-size:18px; color:#4CAF50;">
+        AI-assisted Clinical Decision Support
+    </p>
+</div>
+""", unsafe_allow_html=True)# ============================================================
 # STYLE
 # ============================================================
 
