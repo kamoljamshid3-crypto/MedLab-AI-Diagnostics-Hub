@@ -837,3 +837,265 @@ st.caption(
     "Prototype only • Laboratory reference intervals should be verified locally • "
     "Final clinical decisions remain with a qualified healthcare professional."
     )
+# ============================================================
+# QO'SHIMCHA TAHLILLAR: SIYDIK VA BIOKIMYO
+# ============================================================
+
+st.divider()
+st.header("🧪 Qo'shimcha laboratoriya modullari")
+
+analysis_type = st.selectbox(
+    "Tahlil turini tanlang",
+    [
+        "🩸 CBC — Umumiy qon tahlili",
+        "🧪 UAT — Umumiy siydik tahlili",
+        "🧬 Biokimyoviy qon tahlili"
+    ]
+)
+
+if analysis_type == "🧪 UAT — Umumiy siydik tahlili":
+
+    st.subheader("🧪 Umumiy siydik tahlili")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        urine_color = st.selectbox(
+            "Rang",
+            ["Somon-sariq", "To'q sariq", "Qizil", "Jigarrang", "Rangsiz"]
+        )
+
+        urine_clarity = st.selectbox(
+            "Shaffoflik",
+            ["Shaffof", "Biroz loyqa", "Loyqa"]
+        )
+
+        urine_ph = st.number_input(
+            "pH",
+            min_value=3.0,
+            max_value=10.0,
+            value=6.0
+        )
+
+        urine_density = st.number_input(
+            "Nisbiy zichlik",
+            min_value=1.000,
+            max_value=1.050,
+            value=1.020,
+            format="%.3f"
+        )
+
+    with col2:
+        protein = st.selectbox(
+            "Oqsil",
+            ["Manfiy", "Iz miqdorda", "1+", "2+", "3+"]
+        )
+
+        glucose = st.selectbox(
+            "Glyukoza",
+            ["Manfiy", "Musbat"]
+        )
+
+        blood = st.selectbox(
+            "Qon/eritrotsit",
+            ["Manfiy", "Iz miqdorda", "Musbat"]
+        )
+
+        leukocytes = st.number_input(
+            "Leykotsitlar (ko'rish maydonida)",
+            min_value=0,
+            max_value=100,
+            value=2
+        )
+
+    if st.button("🔍 Siydik tahlilini tahlil qilish"):
+
+        urine_findings = []
+        urine_recommendations = []
+
+        if urine_ph < 5.0 or urine_ph > 8.0:
+            urine_findings.append("pH me'yoriy diapazondan tashqarida.")
+            urine_recommendations.append(
+                "Klinik holat va ovqatlanish bilan birgalikda baholash."
+            )
+
+        if urine_density < 1.005 or urine_density > 1.030:
+            urine_findings.append("Nisbiy zichlik o'zgargan.")
+            urine_recommendations.append(
+                "Suyuqlik balansi va buyrak faoliyatini baholash."
+            )
+
+        if protein != "Manfiy":
+            urine_findings.append("Siydikda oqsil aniqlangan.")
+            urine_recommendations.append(
+                "Proteinuriyani qayta tekshirish va klinik baholash."
+            )
+
+        if glucose == "Musbat":
+            urine_findings.append("Siydikda glyukoza aniqlangan.")
+            urine_recommendations.append(
+                "Qon glyukozasi va diabet bo'yicha baholash."
+            )
+
+        if blood != "Manfiy":
+            urine_findings.append("Siydikda qon/eritrotsit belgisi mavjud.")
+            urine_recommendations.append(
+                "Siydik cho'kmasi va klinik simptomlarni baholash."
+            )
+
+        if leukocytes > 5:
+            urine_findings.append("Leykotsitlar ko'paygan.")
+            urine_recommendations.append(
+                "Siydik yo'llari yallig'lanishi/infeksiyasi ehtimolini baholash."
+            )
+
+        st.subheader("📊 UAT tahlil natijasi")
+
+        if not urine_findings:
+            st.success(
+                "✅ Kiritilgan ko'rsatkichlarda sezilarli og'ish aniqlanmadi."
+            )
+        else:
+            st.warning("⚠️ E'tibor talab qiluvchi ko'rsatkichlar mavjud.")
+
+            for finding in urine_findings:
+                st.write("•", finding)
+
+            st.subheader("💡 Tavsiyalar")
+
+            for recommendation in urine_recommendations:
+                st.write("•", recommendation)
+
+
+elif analysis_type == "🧬 Biokimyoviy qon tahlili":
+
+    st.subheader("🧬 Biokimyoviy qon tahlili")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        glucose_bio = st.number_input(
+            "Glyukoza (mmol/L)",
+            min_value=0.0,
+            value=5.0
+        )
+
+        creatinine = st.number_input(
+            "Kreatinin (µmol/L)",
+            min_value=0.0,
+            value=80.0
+        )
+
+        urea = st.number_input(
+            "Mochevina (mmol/L)",
+            min_value=0.0,
+            value=5.0
+        )
+
+        alt = st.number_input(
+            "ALT (U/L)",
+            min_value=0.0,
+            value=25.0
+        )
+
+    with col2:
+        ast = st.number_input(
+            "AST (U/L)",
+            min_value=0.0,
+            value=25.0
+        )
+
+        bilirubin = st.number_input(
+            "Umumiy bilirubin (µmol/L)",
+            min_value=0.0,
+            value=12.0
+        )
+
+        total_protein = st.number_input(
+            "Umumiy oqsil (g/L)",
+            min_value=0.0,
+            value=70.0
+        )
+
+        cholesterol = st.number_input(
+            "Umumiy xolesterin (mmol/L)",
+            min_value=0.0,
+            value=4.5
+        )
+
+    if st.button("🔍 Biokimyoni AI yordamida tahlil qilish"):
+
+        bio_findings = []
+        bio_recommendations = []
+
+        if glucose_bio < 3.9 or glucose_bio > 6.1:
+            bio_findings.append("Glyukoza o'zgargan.")
+            bio_recommendations.append(
+                "Qon glyukozasini klinik holat va och qoringa olingan namuna bilan baholash."
+            )
+
+        if creatinine > 110:
+            bio_findings.append("Kreatinin yuqori.")
+            bio_recommendations.append(
+                "Buyrak faoliyatini eGFR va klinik ma'lumotlar bilan baholash."
+            )
+
+        if urea > 8.3:
+            bio_findings.append("Mochevina yuqori.")
+            bio_recommendations.append(
+                "Buyrak faoliyati va suyuqlik holatini baholash."
+            )
+
+        if alt > 40:
+            bio_findings.append("ALT yuqori.")
+            bio_recommendations.append(
+                "Jigar fermentlari va jigar holatini klinik baholash."
+            )
+
+        if ast > 40:
+            bio_findings.append("AST yuqori.")
+            bio_recommendations.append(
+                "Jigar va mushak manbalarini klinik baholash."
+            )
+
+        if bilirubin > 21:
+            bio_findings.append("Umumiy bilirubin yuqori.")
+            bio_recommendations.append(
+                "Bilirubin fraksiyalari va jigar/o't yo'llarini baholash."
+            )
+
+        if total_protein < 64 or total_protein > 83:
+            bio_findings.append("Umumiy oqsil o'zgargan.")
+            bio_recommendations.append(
+                "Oziqlanish, jigar va buyrak holatini klinik baholash."
+            )
+
+        if cholesterol > 5.2:
+            bio_findings.append("Umumiy xolesterin yuqori.")
+            bio_recommendations.append(
+                "Lipid profilini va yurak-qon tomir xavfini baholash."
+            )
+
+        st.subheader("📊 Biokimyo tahlil natijasi")
+
+        if not bio_findings:
+            st.success(
+                "✅ Kiritilgan ko'rsatkichlarda sezilarli og'ish aniqlanmadi."
+            )
+        else:
+            st.warning("⚠️ E'tibor talab qiluvchi ko'rsatkichlar mavjud.")
+
+            for finding in bio_findings:
+                st.write("•", finding)
+
+            st.subheader("💡 Tavsiyalar")
+
+            for recommendation in bio_recommendations:
+                st.write("•", recommendation)
+
+
+st.caption(
+    "⚠️ MedLab AI Diagnostics — klinik qarorlarni qo'llab-quvvatlovchi "
+    "MVP prototip. Me'yorlar laboratoriya, yosh, jins va klinik holatga "
+    "qarab farq qilishi mumkin. Yakuniy qarorni shifokor qabul qiladi."
+)
