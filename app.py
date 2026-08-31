@@ -1024,75 +1024,75 @@ elif analysis_type == "🧬 Biokimyoviy qon tahlili":
             value=4.5
         )
 
-    if st.button("🔍 Biokimyoni AI yordamida tahlil qilish"):
+        if st.button("🔍 Biokimyoni AI yordamida tahlil qilish"):
 
-        bio_findings = []
-        bio_recommendations = []
+        client = OpenAI(
+            api_key=st.secrets["OPENAI_API_KEY"]
+        )
 
-        if glucose_bio < 3.9 or glucose_bio > 6.1:
-            bio_findings.append("Glyukoza o'zgargan.")
-            bio_recommendations.append(
-                "Qon glyukozasini klinik holat va och qoringa olingan namuna bilan baholash."
+        patient_context = f"""
+        Bemorning biokimyoviy qon tahlili:
+
+        Glyukoza: {glucose_bio} mmol/L
+        Kreatinin: {creatinine} µmol/L
+        Mochevina: {urea} mmol/L
+        ALT: {alt} U/L
+        AST: {ast} U/L
+        Umumiy bilirubin: {bilirubin} µmol/L
+        Umumiy oqsil: {total_protein} g/L
+        Umumiy xolesterin: {cholesterol} mmol/L
+        """
+
+        with st.spinner("🧠 AI biokimyoviy natijalarni tahlil qilmoqda..."):
+
+            response = client.responses.create(
+                model="gpt-4o-mini",
+                input=f"""
+                Siz MedLab AI Diagnostics klinik qarorlarni
+                qo'llab-quvvatlash tizimisiz.
+
+                Quyidagi biokimyoviy qon tahlilini klinik
+                qarorlarni qo'llab-quvvatlash nuqtai nazaridan
+                tahlil qiling.
+
+                {patient_context}
+
+                Javobni o'zbek tilida va quyidagi tartibda bering:
+
+                1. 📊 Umumiy baholash
+                2. 🔎 Muhim og'ishlar
+                3. 🧩 Ehtimoliy klinik yo'nalishlar
+                4. 🧪 Tavsiya etiladigan qo'shimcha tekshiruvlar
+                5. 👨‍⚕️ Shifokor uchun qisqa klinik izoh
+
+                Har bir natijani boshqa ko'rsatkichlar bilan
+                birgalikda baholang.
+
+                Faqat bitta laborator ko'rsatkich asosida tashxis
+                qo'ymang.
+
+                Tashxisni qat'iy tasdiqlamang. Ehtimoliy klinik
+                yo'nalish sifatida ifodalang.
+
+                Natijalar laboratoriya referens intervali,
+                bemorning yoshi, jinsi, simptomlari va klinik
+                holatiga qarab farq qilishi mumkinligini ko'rsating.
+
+                Bu tizim shifokor qarorini almashtirmaydi.
+                """,
             )
 
-        if creatinine > 110:
-            bio_findings.append("Kreatinin yuqori.")
-            bio_recommendations.append(
-                "Buyrak faoliyatini eGFR va klinik ma'lumotlar bilan baholash."
-            )
+        ai_result = response.output_text
 
-        if urea > 8.3:
-            bio_findings.append("Mochevina yuqori.")
-            bio_recommendations.append(
-                "Buyrak faoliyati va suyuqlik holatini baholash."
-            )
+        st.subheader("🤖 MedLab AI klinik tahlili")
 
-        if alt > 40:
-            bio_findings.append("ALT yuqori.")
-            bio_recommendations.append(
-                "Jigar fermentlari va jigar holatini klinik baholash."
-            )
+        st.markdown(ai_result)
 
-        if ast > 40:
-            bio_findings.append("AST yuqori.")
-            bio_recommendations.append(
-                "Jigar va mushak manbalarini klinik baholash."
-            )
-
-        if bilirubin > 21:
-            bio_findings.append("Umumiy bilirubin yuqori.")
-            bio_recommendations.append(
-                "Bilirubin fraksiyalari va jigar/o't yo'llarini baholash."
-            )
-
-        if total_protein < 64 or total_protein > 83:
-            bio_findings.append("Umumiy oqsil o'zgargan.")
-            bio_recommendations.append(
-                "Oziqlanish, jigar va buyrak holatini klinik baholash."
-            )
-
-        if cholesterol > 5.2:
-            bio_findings.append("Umumiy xolesterin yuqori.")
-            bio_recommendations.append(
-                "Lipid profilini va yurak-qon tomir xavfini baholash."
-            )
-
-        st.subheader("📊 Biokimyo tahlil natijasi")
-
-        if not bio_findings:
-            st.success(
-                "✅ Kiritilgan ko'rsatkichlarda sezilarli og'ish aniqlanmadi."
-            )
-        else:
-            st.warning("⚠️ E'tibor talab qiluvchi ko'rsatkichlar mavjud.")
-
-            for finding in bio_findings:
-                st.write("•", finding)
-
-            st.subheader("💡 Tavsiyalar")
-
-            for recommendation in bio_recommendations:
-                st.write("•", recommendation)
+        st.info(
+            "ℹ️ AI xulosasi klinik qarorni qo'llab-quvvatlash "
+            "uchun mo'ljallangan. Yakuniy tashxis va davolash "
+            "qarorini shifokor belgilaydi."
+        )
 
 
 st.caption(
