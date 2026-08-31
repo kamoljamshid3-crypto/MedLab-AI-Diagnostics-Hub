@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from openai import OpenAI
+from groq import Groq
 from datetime import datetime
 from io import BytesIO
 from PIL import Image
@@ -970,15 +970,15 @@ if analysis_type == "🧪 UAT — Umumiy siydik tahlili":
 
         if st.button("🤖 UAT ni AI yordamida klinik tahlil qilish"):
 
-            client = OpenAI(
-                api_key=st.secrets["OPENAI_API_KEY"]
+            client = Groq(
+                api_key=st.secrets["GROQ_API_KEY"]
             )
 
             urine_context = f"""
 Bemorning umumiy siydik tahlili (UAT) natijalari:
 
-pH: {ph}
-Nisbiy zichlik: {specific_gravity}
+pH: {urine_ph}
+Nisbiy zichlik: {urine_density}
 Oqsil: {protein}
 Glyukoza: {glucose}
 Qon/eritrotsit: {blood}
@@ -990,9 +990,12 @@ Tizim tomonidan aniqlangan og'ishlar:
 
             with st.spinner("🧠 AI UAT natijalarini klinik tahlil qilmoqda..."):
 
-                response = client.responses.create(
-                    model="gpt-4o-mini",
-                    input=f"""
+                response = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": f"""
 Siz MedLab AI Diagnostics klinik qarorlarni qo'llab-quvvatlash tizimisiz.
 
 Quyidagi umumiy siydik tahlili natijalarini klinik nuqtai nazardan
@@ -1015,9 +1018,11 @@ Muhim:
   olinishi kerakligini ta'kidlang.
 - Yakuniy klinik qarorni shifokor qabul qiladi.
 """
+                        }
+                    ]
                 )
 
-            ai_urine_result = response.output_text
+            ai_urine_result = response.choices[0].message.content
 
             st.subheader("🤖 MedLab AI — UAT klinik interpretatsiyasi")
 
@@ -1086,8 +1091,8 @@ elif analysis_type == "🧬 Biokimyoviy qon tahlili":
 
     if st.button("🔍 Biokimyoni AI yordamida tahlil qilish"):
 
-        client = OpenAI(
-            api_key=st.secrets["OPENAI_API_KEY"]
+        client = Groq(
+            api_key=st.secrets["GROQ_API_KEY"]
         )
 
         patient_context = f"""
@@ -1105,9 +1110,12 @@ elif analysis_type == "🧬 Biokimyoviy qon tahlili":
 
         with st.spinner("🧠 AI biokimyoviy tahlilni baholamoqda..."):
 
-            response = client.responses.create(
-                model="gpt-4o-mini",
-                input=f"""
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"""
                 Siz MedLab AI Diagnostics klinik qarorlarni
                 qo'llab-quvvatlovchi tizimisiz.
 
@@ -1136,9 +1144,11 @@ elif analysis_type == "🧬 Biokimyoviy qon tahlili":
                 Tashxisni qat'iy tasdiqlamang va dori buyurishni
                 shifokor o'rniga bajarmang.
                 """
+                    }
+                ]
             )
 
-        ai_result = response.output_text
+        ai_result = response.choices[0].message.content
 
         st.subheader("🤖 MedLab AI klinik tahlili")
 
