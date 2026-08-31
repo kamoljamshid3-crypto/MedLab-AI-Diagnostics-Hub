@@ -1028,7 +1028,7 @@ Muhim:
                 "mo'ljallangan. Yakuniy tashxis va davolash qarorini "
                 "shifokor belgilaydi."
         )
-               elif analysis_type == "🧬 Biokimyoviy qon tahlili":
+elif analysis_type == "🧬 Biokimyoviy qon tahlili":
 
     st.subheader("🧬 Biokimyoviy qon tahlili")
 
