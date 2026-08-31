@@ -950,6 +950,26 @@ if analysis_type == "🧪 UAT — Umumiy siydik tahlili":
                 "Siydik yo'llari yallig'lanishi/infeksiyasi ehtimolini baholash."
             )
 
+        # Natijalarni session_state'ga saqlaymiz, aks holda AI tugmasi
+        # bosilganda sahifa qayta yuklanib, bu natijalar yo'qolib ketardi.
+        st.session_state["urine_findings"] = urine_findings
+        st.session_state["urine_recommendations"] = urine_recommendations
+        st.session_state["urine_inputs"] = {
+            "ph": urine_ph,
+            "density": urine_density,
+            "protein": protein,
+            "glucose": glucose,
+            "blood": blood,
+            "leukocytes": leukocytes,
+        }
+
+    # Tahlil natijalarini (agar mavjud bo'lsa) har doim ko'rsatamiz
+    if "urine_findings" in st.session_state:
+
+        urine_findings = st.session_state["urine_findings"]
+        urine_recommendations = st.session_state["urine_recommendations"]
+        saved_inputs = st.session_state["urine_inputs"]
+
         st.subheader("📊 UAT tahlil natijasi")
 
         if not urine_findings:
@@ -967,35 +987,36 @@ if analysis_type == "🧪 UAT — Umumiy siydik tahlili":
             for recommendation in urine_recommendations:
                 st.write("•", recommendation)
 
+        # AI tugmasi endi tashqi tugmaning ichida emas — mustaqil ishlaydi
+        if st.button("🤖 UAT ni AI yordamida klinik tahlil qilish", key="uat_ai_btn"):
 
-        if st.button("🤖 UAT ni AI yordamida klinik tahlil qilish"):
+            try:
+                client = Groq(
+                    api_key=st.secrets["GROQ_API_KEY"]
+                )
 
-            client = Groq(
-                api_key=st.secrets["GROQ_API_KEY"]
-            )
-
-            urine_context = f"""
+                urine_context = f"""
 Bemorning umumiy siydik tahlili (UAT) natijalari:
 
-pH: {urine_ph}
-Nisbiy zichlik: {urine_density}
-Oqsil: {protein}
-Glyukoza: {glucose}
-Qon/eritrotsit: {blood}
-Leykotsitlar: {leukocytes} ko'rish maydonida
+pH: {saved_inputs['ph']}
+Nisbiy zichlik: {saved_inputs['density']}
+Oqsil: {saved_inputs['protein']}
+Glyukoza: {saved_inputs['glucose']}
+Qon/eritrotsit: {saved_inputs['blood']}
+Leykotsitlar: {saved_inputs['leukocytes']} ko'rish maydonida
 
 Tizim tomonidan aniqlangan og'ishlar:
 {chr(10).join(urine_findings) if urine_findings else "Sezilarli og'ish aniqlanmadi."}
 """
 
-            with st.spinner("🧠 AI UAT natijalarini klinik tahlil qilmoqda..."):
+                with st.spinner("🧠 AI UAT natijalarini klinik tahlil qilmoqda..."):
 
-                response = client.chat.completions.create(
-                    model="openai/gpt-oss-120b",
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": f"""
+                    response = client.chat.completions.create(
+                        model="openai/gpt-oss-120b",
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": f"""
 Siz MedLab AI Diagnostics klinik qarorlarni qo'llab-quvvatlash tizimisiz.
 
 Quyidagi umumiy siydik tahlili natijalarini klinik nuqtai nazardan
@@ -1018,21 +1039,27 @@ Muhim:
   olinishi kerakligini ta'kidlang.
 - Yakuniy klinik qarorni shifokor qabul qiladi.
 """
-                        }
-                    ]
-                )
+                            }
+                        ]
+                    )
 
-            ai_urine_result = response.choices[0].message.content
+                st.session_state["ai_urine_result"] = response.choices[0].message.content
+
+            except Exception as e:
+                st.error(f"❌ AI tahlilida xatolik yuz berdi: {e}")
+
+        # AI natijasini (agar mavjud bo'lsa) doim ko'rsatamiz
+        if "ai_urine_result" in st.session_state:
 
             st.subheader("🤖 MedLab AI — UAT klinik interpretatsiyasi")
 
-            st.markdown(ai_urine_result)
+            st.markdown(st.session_state["ai_urine_result"])
 
             st.info(
                 "ℹ️ AI xulosasi klinik qarorni qo'llab-quvvatlash uchun "
                 "mo'ljallangan. Yakuniy tashxis va davolash qarorini "
                 "shifokor belgilaydi."
-        )
+            )
 elif analysis_type == "🧬 Biokimyoviy qon tahlili":
 
     st.subheader("🧬 Biokimyoviy qon tahlili")
@@ -1089,70 +1116,76 @@ elif analysis_type == "🧬 Biokimyoviy qon tahlili":
             value=4.5
         )
 
-    if st.button("🔍 Biokimyoni AI yordamida tahlil qilish"):
+    if st.button("🔍 Biokimyoni AI yordamida tahlil qilish", key="bio_ai_btn"):
 
-        client = Groq(
-            api_key=st.secrets["GROQ_API_KEY"]
-        )
-
-        patient_context = f"""
-        Bemorning biokimyoviy qon tahlili:
-
-        Glyukoza: {glucose_bio} mmol/L
-        Kreatinin: {creatinine} µmol/L
-        Mochevina: {urea} mmol/L
-        ALT: {alt} U/L
-        AST: {ast} U/L
-        Umumiy bilirubin: {bilirubin} µmol/L
-        Umumiy oqsil: {total_protein} g/L
-        Umumiy xolesterin: {cholesterol} mmol/L
-        """
-
-        with st.spinner("🧠 AI biokimyoviy tahlilni baholamoqda..."):
-
-            response = client.chat.completions.create(
-                model="openai/gpt-oss-120b",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": f"""
-                Siz MedLab AI Diagnostics klinik qarorlarni
-                qo'llab-quvvatlovchi tizimisiz.
-
-                Quyidagi biokimyoviy qon tahlilini klinik jihatdan
-                ehtiyotkorlik bilan tahlil qiling.
-
-                {patient_context}
-
-                Javobni o'zbek tilida bering.
-
-                Quyidagi tartibda javob bering:
-
-                1. 📊 Umumiy baholash
-                2. 🔎 Muhim og'ishlar
-                3. 🧩 Ehtimoliy klinik yo'nalishlar
-                4. 🧪 Tavsiya etiladigan qo'shimcha tekshiruvlar
-                5. 👨‍⚕️ Shifokor uchun qisqa xulosa
-
-                Har bir natijani birgalikda baholang.
-                Bitta laborator ko'rsatkich asosida yakuniy tashxis
-                qo'ymang.
-
-                Me'yorlar laboratoriya usuli, bemorning yoshi, jinsi
-                va klinik holatiga qarab farq qilishi mumkin.
-
-                Tashxisni qat'iy tasdiqlamang va dori buyurishni
-                shifokor o'rniga bajarmang.
-                """
-                    }
-                ]
+        try:
+            client = Groq(
+                api_key=st.secrets["GROQ_API_KEY"]
             )
 
-        ai_result = response.choices[0].message.content
+            patient_context = f"""
+            Bemorning biokimyoviy qon tahlili:
+
+            Glyukoza: {glucose_bio} mmol/L
+            Kreatinin: {creatinine} µmol/L
+            Mochevina: {urea} mmol/L
+            ALT: {alt} U/L
+            AST: {ast} U/L
+            Umumiy bilirubin: {bilirubin} µmol/L
+            Umumiy oqsil: {total_protein} g/L
+            Umumiy xolesterin: {cholesterol} mmol/L
+            """
+
+            with st.spinner("🧠 AI biokimyoviy tahlilni baholamoqda..."):
+
+                response = client.chat.completions.create(
+                    model="openai/gpt-oss-120b",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": f"""
+                    Siz MedLab AI Diagnostics klinik qarorlarni
+                    qo'llab-quvvatlovchi tizimisiz.
+
+                    Quyidagi biokimyoviy qon tahlilini klinik jihatdan
+                    ehtiyotkorlik bilan tahlil qiling.
+
+                    {patient_context}
+
+                    Javobni o'zbek tilida bering.
+
+                    Quyidagi tartibda javob bering:
+
+                    1. 📊 Umumiy baholash
+                    2. 🔎 Muhim og'ishlar
+                    3. 🧩 Ehtimoliy klinik yo'nalishlar
+                    4. 🧪 Tavsiya etiladigan qo'shimcha tekshiruvlar
+                    5. 👨‍⚕️ Shifokor uchun qisqa xulosa
+
+                    Har bir natijani birgalikda baholang.
+                    Bitta laborator ko'rsatkich asosida yakuniy tashxis
+                    qo'ymang.
+
+                    Me'yorlar laboratoriya usuli, bemorning yoshi, jinsi
+                    va klinik holatiga qarab farq qilishi mumkin.
+
+                    Tashxisni qat'iy tasdiqlamang va dori buyurishni
+                    shifokor o'rniga bajarmang.
+                    """
+                        }
+                    ]
+                )
+
+            st.session_state["ai_bio_result"] = response.choices[0].message.content
+
+        except Exception as e:
+            st.error(f"❌ AI tahlilida xatolik yuz berdi: {e}")
+
+    if "ai_bio_result" in st.session_state:
 
         st.subheader("🤖 MedLab AI klinik tahlili")
 
-        st.markdown(ai_result)
+        st.markdown(st.session_state["ai_bio_result"])
 
         st.info(
             "ℹ️ AI xulosasi klinik qarorni qo'llab-quvvatlash uchun "
