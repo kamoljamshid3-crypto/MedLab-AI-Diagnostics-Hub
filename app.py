@@ -4,10 +4,100 @@ from groq import Groq
 from datetime import datetime
 from io import BytesIO
 from PIL import Image
+import base64
 # ============================================================
 # MEDLAB AI DIAGNOSTICS HUB
 # Professional CBC Clinical Decision Support MVP
 # ============================================================
+
+# ============================================================
+# AI YORDAMCHI FUNKSIYALAR (Groq) — barcha modullar shulardan foydalanadi
+# ============================================================
+
+TEXT_MODEL = "openai/gpt-oss-120b"
+VISION_MODEL = "qwen/qwen3.6-27b"  # Diqqat: Groq vision modeli tez-tez o'zgaradi — konsoldan joriy nomni tekshiring
+
+
+def get_groq_client():
+    return Groq(api_key=st.secrets["GROQ_API_KEY"])
+
+
+def ai_text_analysis(prompt):
+    """Matnli/raqamli ma'lumot asosida AI klinik tahlil qaytaradi: (natija, xatolik)."""
+    try:
+        client = get_groq_client()
+        response = client.chat.completions.create(
+            model=TEXT_MODEL,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content, None
+    except Exception as e:
+        return None, str(e)
+
+
+def ai_image_analysis(image_file, prompt):
+    """Yuklangan rasm asosida AI vision klinik tahlil qaytaradi: (natija, xatolik)."""
+    try:
+        client = get_groq_client()
+        img_bytes = image_file.getvalue()
+        b64_image = base64.b64encode(img_bytes).decode("utf-8")
+        mime = image_file.type or "image/jpeg"
+        response = client.chat.completions.create(
+            model=VISION_MODEL,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64_image}"}}
+                ]
+            }]
+        )
+        return response.choices[0].message.content, None
+    except Exception as e:
+        return None, str(e)
+
+
+def render_ai_result(session_key, header="🤖 AI klinik tahlili", note=None):
+    """Session_state'da saqlangan AI natijasini (agar mavjud bo'lsa) ko'rsatadi."""
+    if session_key in st.session_state:
+        st.subheader(header)
+        st.markdown(st.session_state[session_key])
+        st.info(
+            note or
+            "ℹ️ AI xulosasi klinik qarorni qo'llab-quvvatlash uchun mo'ljallangan. "
+            "Yakuniy tashxis va davolash qarorini shifokor belgilaydi."
+        )
+
+
+def image_upload_ai_section(key_prefix, uploader_label, build_prompt_fn, session_key,
+                             button_label="🤖 Rasm asosida AI tahlil qilish", note=None):
+    """Rasm yuklab, AI vision orqali tahlil qilish uchun umumiy (qayta ishlatiladigan) blok."""
+    uploaded = st.file_uploader(uploader_label, type=["jpg", "jpeg", "png"], key=f"{key_prefix}_uploader")
+
+    if uploaded is not None:
+        st.image(uploaded, caption="Yuklangan tasvir", use_container_width=True)
+
+    if st.button(button_label, key=f"{key_prefix}_img_ai_btn", use_container_width=True):
+        if uploaded is None:
+            st.warning("⚠️ Avval rasm yuklang.")
+        else:
+            prompt = build_prompt_fn()
+            with st.spinner("🧠 AI tasvirni tahlil qilmoqda..."):
+                result, err = ai_image_analysis(uploaded, prompt)
+            if err:
+                st.error(f"❌ AI vision tahlilida xatolik yuz berdi: {err}")
+            else:
+                st.session_state[session_key] = result
+
+    render_ai_result(
+        session_key,
+        header="🤖 AI — rasm asosidagi tahlil",
+        note=note or (
+            "ℹ️ AI xulosasi yuklangan tasvir asosida tuzilgan dastlabki, "
+            "ehtimoliy izoh hisoblanadi. Rasmiy xulosa va yakuniy tashxis "
+            "malakali shifokor tomonidan belgilanadi."
+        )
+    )
 
 st.set_page_config(
     page_title="MedLab AI Diagnostics",
@@ -698,6 +788,89 @@ if analyze:
         )
 
     # --------------------------------------------------------
+    # AI CHUQUR TAHLIL (CBC)
+    # --------------------------------------------------------
+
+    st.divider()
+    st.header("🤖 AI yordamida qo'shimcha klinik tahlil")
+
+    if st.button("🧠 CBC ni AI bilan chuqurroq tahlil qilish", key="cbc_ai_btn", use_container_width=True):
+
+        cbc_context = "\n".join(
+            f"{name}: {item['value']} {item['unit']} "
+            f"(reference: {item['range'][0]}-{item['range'][1]}) — {item['status']}"
+            for name, item in results.items()
+        )
+
+        cbc_prompt = f"""
+Siz MedLab AI Diagnostics klinik qarorlarni qo'llab-quvvatlash tizimisiz.
+
+Bemor: {age} yosh, {sex}
+Shikoyatlar: {complaints or "Ko'rsatilmagan"}
+
+CBC natijalari:
+{cbc_context}
+
+Tizim tomonidan aniqlangan topilmalar:
+{chr(10).join(findings) if findings else "Sezilarli pattern aniqlanmadi."}
+
+Ushbu CBC natijalarini klinik nuqtai nazardan ehtiyotkorlik bilan
+chuqurroq tahlil qiling.
+
+Javobni O'ZBEK TILIDA quyidagi tartibda bering:
+
+1. 📊 Umumiy baholash
+2. 🔎 Muhim laborator o'zgarishlar
+3. 🧩 Ehtimoliy klinik yo'nalishlar
+4. 💡 Tavsiya etiladigan keyingi tekshiruvlar
+5. 👨‍⚕️ Shifokor uchun qisqa xulosa
+
+Muhim:
+- Tashxisni qat'iy tasdiqlamang.
+- Faqat laborator natijalar asosida ehtimoliy yo'nalishlarni ko'rsating.
+- Yakuniy klinik qarorni shifokor qabul qiladi.
+"""
+
+        with st.spinner("🧠 AI CBC natijalarini chuqur tahlil qilmoqda..."):
+            cbc_ai_result, cbc_ai_err = ai_text_analysis(cbc_prompt)
+
+        if cbc_ai_err:
+            st.error(f"❌ AI tahlilida xatolik yuz berdi: {cbc_ai_err}")
+        else:
+            st.session_state["ai_cbc_result"] = cbc_ai_result
+
+    render_ai_result("ai_cbc_result", header="🤖 MedLab AI — CBC chuqur tahlili")
+
+    st.markdown("**— yoki CBC blankasining rasmini yuklang —**")
+
+    image_upload_ai_section(
+        key_prefix="cbc",
+        uploader_label="CBC natija blankasi/varag'ining rasmini yuklang",
+        build_prompt_fn=lambda: f"""
+Siz MedLab AI Diagnostics klinik qarorlarni qo'llab-quvvatlash tizimisiz.
+
+Bemor: {age} yosh, {sex}
+Shikoyatlar: {complaints or "Ko'rsatilmagan"}
+
+Ilova qilingan tasvirda CBC (umumiy qon tahlili) natijalari blankasi bor.
+Tasvirdagi ko'rinadigan ko'rsatkichlarni o'qib, klinik nuqtai nazardan
+ehtiyotkorlik bilan sharhlab bering.
+
+Javobni O'ZBEK TILIDA quyidagi tartibda bering:
+
+1. 📊 Tasvirda o'qilgan asosiy ko'rsatkichlar
+2. 🔎 Diqqatga sazovor og'ishlar
+3. 🧩 Ehtimoliy klinik yo'nalishlar
+4. 💡 Tavsiya etiladigan keyingi tekshiruvlar
+5. 👨‍⚕️ Shifokor uchun qisqa xulosa
+
+MUHIM: Tasvir sifati past yoki matn noaniq bo'lishi mumkinligini
+aniq eslatib o'ting. Tashxisni qat'iy tasdiqlamang.
+""",
+        session_key="ai_cbc_image_result"
+    )
+
+    # --------------------------------------------------------
     # PDF REPORT
     # --------------------------------------------------------
 
@@ -850,7 +1023,9 @@ analysis_type = st.selectbox(
     [
         "🩸 CBC — Umumiy qon tahlili",
         "🧪 UAT — Umumiy siydik tahlili",
-        "🧬 Biokimyoviy qon tahlili"
+        "🧬 Biokimyoviy qon tahlili",
+        "🩻 UZI — Ultratovush tekshiruvi",
+        "🧠 MRT / MSKT — Tasvir tahlili"
     ]
 )
 
@@ -1060,6 +1235,37 @@ Muhim:
                 "mo'ljallangan. Yakuniy tashxis va davolash qarorini "
                 "shifokor belgilaydi."
             )
+
+    st.divider()
+    st.markdown("**📷 Yoki UAT blankasining rasmini yuklab AI tahlil qildiring**")
+
+    image_upload_ai_section(
+        key_prefix="uat",
+        uploader_label="UAT (umumiy siydik tahlili) blankasining rasmini yuklang",
+        build_prompt_fn=lambda: f"""
+Siz MedLab AI Diagnostics klinik qarorlarni qo'llab-quvvatlash tizimisiz.
+
+Bemor: {age} yosh, {sex}
+Shikoyatlar: {complaints or "Ko'rsatilmagan"}
+
+Ilova qilingan tasvirda umumiy siydik tahlili (UAT) natijalari blankasi bor.
+Tasvirdagi ko'rinadigan ko'rsatkichlarni o'qib, klinik nuqtai nazardan
+ehtiyotkorlik bilan sharhlab bering.
+
+Javobni O'ZBEK TILIDA quyidagi tartibda bering:
+
+1. 📊 Tasvirda o'qilgan asosiy ko'rsatkichlar
+2. 🔎 Diqqatga sazovor og'ishlar
+3. 🧩 Ehtimoliy klinik yo'nalishlar
+4. 💡 Tavsiya etiladigan keyingi tekshiruvlar
+5. 👨‍⚕️ Shifokor uchun qisqa xulosa
+
+MUHIM: Tasvir sifati past yoki matn noaniq bo'lishi mumkinligini
+aniq eslatib o'ting. Tashxisni qat'iy tasdiqlamang.
+""",
+        session_key="ai_uat_image_result"
+    )
+
 elif analysis_type == "🧬 Biokimyoviy qon tahlili":
 
     st.subheader("🧬 Biokimyoviy qon tahlili")
@@ -1192,6 +1398,370 @@ elif analysis_type == "🧬 Biokimyoviy qon tahlili":
             "mo'ljallangan. Yakuniy tashxis va davolash qarorini "
             "shifokor belgilaydi."
         )
+
+    st.divider()
+    st.markdown("**📷 Yoki biokimyo blankasining rasmini yuklab AI tahlil qildiring**")
+
+    image_upload_ai_section(
+        key_prefix="bio",
+        uploader_label="Biokimyoviy tahlil blankasining rasmini yuklang",
+        build_prompt_fn=lambda: f"""
+Siz MedLab AI Diagnostics klinik qarorlarni qo'llab-quvvatlash tizimisiz.
+
+Bemor: {age} yosh, {sex}
+Shikoyatlar: {complaints or "Ko'rsatilmagan"}
+
+Ilova qilingan tasvirda biokimyoviy qon tahlili natijalari blankasi bor.
+Tasvirdagi ko'rinadigan ko'rsatkichlarni o'qib, klinik nuqtai nazardan
+ehtiyotkorlik bilan sharhlab bering.
+
+Javobni O'ZBEK TILIDA quyidagi tartibda bering:
+
+1. 📊 Tasvirda o'qilgan asosiy ko'rsatkichlar
+2. 🔎 Diqqatga sazovor og'ishlar
+3. 🧩 Ehtimoliy klinik yo'nalishlar
+4. 💡 Tavsiya etiladigan keyingi tekshiruvlar
+5. 👨‍⚕️ Shifokor uchun qisqa xulosa
+
+MUHIM: Tasvir sifati past yoki matn noaniq bo'lishi mumkinligini
+aniq eslatib o'ting. Tashxisni qat'iy tasdiqlamang.
+""",
+        session_key="ai_bio_image_result"
+    )
+
+elif analysis_type == "🩻 UZI — Ultratovush tekshiruvi":
+
+    st.subheader("🩻 UZI — Ultratovush tekshiruvi tahlili")
+
+    uzi_mode = st.radio(
+        "Ma'lumot kiritish usulini tanlang",
+        ["📝 Shifokor xulosasi (matn)", "🖼️ Tasvir yuklash (rasm)"],
+        horizontal=True,
+        key="uzi_mode"
+    )
+
+    uzi_area = st.selectbox(
+        "Tekshiruv sohasi",
+        [
+            "Qorin bo'shlig'i UZI", "Buyrak/siydik yo'llari UZI",
+            "Ginekologik UZI", "Qalqonsimon bez UZI",
+            "Yurak UZI (EXO)", "Ko'krak bezi UZI", "Boshqa"
+        ],
+        key="uzi_area"
+    )
+
+    uzi_note = st.text_input(
+        "Qo'shimcha kontekst (ixtiyoriy)",
+        placeholder="Masalan: klinik shikoyat, yo'naltirilgan sabab...",
+        key="uzi_note"
+    )
+
+    if uzi_mode == "📝 Shifokor xulosasi (matn)":
+
+        uzi_text_input = st.text_area(
+            "UZI xulosasi matnini kiriting",
+            height=200,
+            placeholder="Ultratovush tekshiruvi xulosasini shu yerga joylashtiring...",
+            key="uzi_text_input"
+        )
+
+        if st.button("🤖 UZI xulosasini AI yordamida tahlil qilish", key="uzi_text_ai_btn"):
+
+            if not uzi_text_input.strip():
+                st.warning("⚠️ Avval UZI xulosasi matnini kiriting.")
+            else:
+                uzi_prompt = f"""
+Siz MedLab AI Diagnostics klinik qarorlarni qo'llab-quvvatlash tizimisiz.
+
+Tekshiruv sohasi: {uzi_area}
+Qo'shimcha kontekst: {uzi_note or "Ko'rsatilmagan"}
+Bemor: {age} yosh, {sex}
+Shikoyatlar: {complaints or "Ko'rsatilmagan"}
+
+Shifokor tomonidan yozilgan UZI xulosasi matni:
+\"\"\"{uzi_text_input}\"\"\"
+
+Ushbu ultratovush xulosasini klinik nuqtai nazardan ehtiyotkorlik bilan
+sharhlab bering.
+
+Javobni O'ZBEK TILIDA quyidagi tartibda bering:
+
+1. 📊 Umumiy baholash
+2. 🔎 Xulosadagi asosiy topilmalar
+3. 🧩 Ehtimoliy klinik yo'nalishlar
+4. 💡 Tavsiya etiladigan keyingi tekshiruv/konsultatsiyalar
+5. 👨‍⚕️ Shifokor uchun qisqa xulosa
+
+Muhim:
+- Siz tasvirni o'zingiz ko'rmayapsiz, faqat yozma xulosani tahlil
+  qilyapsiz — buni javobingizda eslatib o'ting.
+- Yakuniy tashxisni qat'iy tasdiqlamang.
+- Yakuniy klinik qarorni shifokor qabul qiladi.
+"""
+                with st.spinner("🧠 AI UZI xulosasini tahlil qilmoqda..."):
+                    uzi_text_result, uzi_text_err = ai_text_analysis(uzi_prompt)
+
+                if uzi_text_err:
+                    st.error(f"❌ AI tahlilida xatolik yuz berdi: {uzi_text_err}")
+                else:
+                    st.session_state["ai_uzi_text_result"] = uzi_text_result
+
+        render_ai_result(
+            "ai_uzi_text_result",
+            header="🤖 MedLab AI — UZI xulosa tahlili",
+            note=(
+                "ℹ️ AI xulosasi faqat yozilgan matn asosida tuzilgan. "
+                "Tasvirning o'zi ko'rilmagan. Yakuniy tashxis va davolash "
+                "qarorini shifokor belgilaydi."
+            )
+        )
+
+    else:
+
+        st.caption(
+            "⚠️ Diqqat: bu vision-AI modeli, sonograf emas. Model faqat "
+            "ko'rinadigan tasvir asosida ehtimoliy izohlar beradi."
+        )
+
+        image_upload_ai_section(
+            key_prefix="uzi",
+            uploader_label="UZI tasvirini yuklang (JPG, PNG)",
+            build_prompt_fn=lambda: f"""
+Siz MedLab AI Diagnostics klinik qarorlarni qo'llab-quvvatlash tizimisiz.
+
+Tekshiruv sohasi: {uzi_area}
+Qo'shimcha kontekst: {uzi_note or "Ko'rsatilmagan"}
+Bemor: {age} yosh, {sex}
+Shikoyatlar: {complaints or "Ko'rsatilmagan"}
+
+Ilova qilingan UZI (ultratovush) tasvirini ko'rib chiqing va klinik
+nuqtai nazardan ehtiyotkorlik bilan tavsiflab bering.
+
+Javobni O'ZBEK TILIDA quyidagi tartibda bering:
+
+1. 📊 Tasvirda ko'rinayotgan umumiy manzara
+2. 🔎 Diqqatga sazovor topilmalar (agar bo'lsa)
+3. 🧩 Ehtimoliy klinik yo'nalishlar
+4. 💡 Tavsiya etiladigan keyingi tekshiruv/konsultatsiyalar
+5. 👨‍⚕️ Shifokor uchun qisqa xulosa
+
+MUHIM CHEKLOVLAR:
+- Siz sonograf/radiolog emassiz, faqat yordamchi AI vision vositasisiz.
+- Tasvir sifati past bo'lishi mumkinligini aniq ta'kidlang.
+- Yakuniy tashxisni hech qachon qat'iy tasdiqlamang.
+- Har doim malakali mutaxassis tomonidan rasmiy tekshiruv zarurligini
+  ta'kidlang.
+""",
+            session_key="ai_uzi_image_result",
+            note=(
+                "ℹ️ AI vision xulosasi faqat yuklangan tasvir asosida tuzilgan "
+                "dastlabki, ehtimoliy izoh hisoblanadi. Rasmiy xulosa va "
+                "yakuniy tashxis malakali shifokor tomonidan belgilanadi."
+            )
+        )
+
+elif analysis_type == "🧠 MRT / MSKT — Tasvir tahlili":
+
+    st.subheader("🧠 MRT / MSKT — Tasvir tahlili")
+
+    input_mode = st.radio(
+        "Ma'lumot kiritish usulini tanlang",
+        ["📝 Radiolog xulosasi (matn)", "🖼️ Tasvir yuklash (rasm)"],
+        horizontal=True
+    )
+
+    scan_type = st.selectbox(
+        "Tekshiruv turi",
+        [
+            "Bosh miya MRT", "Umurtqa pog'onasi MRT", "Bo'g'im MRT",
+            "Qorin bo'shlig'i MSKT", "Ko'krak qafasi MSKT",
+            "Bosh miya MSKT", "Boshqa"
+        ]
+    )
+
+    scan_area_note = st.text_input(
+        "Qo'shimcha kontekst (ixtiyoriy)",
+        placeholder="Masalan: kontrast bilan, klinik shikoyat, yo'naltirilgan sabab..."
+    )
+
+    # ----------------------------------------------------
+    # MATN REJIMI — radiolog xulosasini yozib kiritish
+    # ----------------------------------------------------
+    if input_mode == "📝 Radiolog xulosasi (matn)":
+
+        report_text_input = st.text_area(
+            "Radiolog xulosasi matnini kiriting",
+            height=200,
+            placeholder="Radiolog tomonidan yozilgan tasvir tavsifi / xulosani shu yerga joylashtiring..."
+        )
+
+        if st.button("🤖 Xulosani AI yordamida klinik tahlil qilish", key="mrt_text_ai_btn"):
+
+            if not report_text_input.strip():
+                st.warning("⚠️ Avval radiolog xulosasi matnini kiriting.")
+            else:
+                try:
+                    client = Groq(
+                        api_key=st.secrets["GROQ_API_KEY"]
+                    )
+
+                    with st.spinner("🧠 AI tasvir xulosasini klinik tahlil qilmoqda..."):
+
+                        response = client.chat.completions.create(
+                            model="openai/gpt-oss-120b",
+                            messages=[
+                                {
+                                    "role": "user",
+                                    "content": f"""
+Siz MedLab AI Diagnostics klinik qarorlarni qo'llab-quvvatlash tizimisiz.
+
+Tekshiruv turi: {scan_type}
+Qo'shimcha kontekst: {scan_area_note or "Ko'rsatilmagan"}
+Bemor: {age} yosh, {sex}
+Shikoyatlar: {complaints or "Ko'rsatilmagan"}
+
+Radiolog tomonidan yozilgan xulosa matni:
+\"\"\"{report_text_input}\"\"\"
+
+Ushbu radiologik xulosani klinik nuqtai nazardan ehtiyotkorlik bilan
+sharhlab bering.
+
+Javobni O'ZBEK TILIDA quyidagi tartibda bering:
+
+1. 📊 Umumiy baholash
+2. 🔎 Xulosadagi asosiy topilmalar
+3. 🧩 Ehtimoliy klinik yo'nalishlar
+4. 💡 Tavsiya etiladigan keyingi tekshiruv/konsultatsiyalar
+5. 👨‍⚕️ Shifokor uchun qisqa xulosa
+
+Muhim:
+- Siz radiologik tasvirni o'zingiz ko'rmayapsiz, faqat yozma xulosani
+  tahlil qilyapsiz — buni javobingizda eslatib o'ting.
+- Yakuniy tashxisni qat'iy tasdiqlamang.
+- Yakuniy klinik qarorni shifokor qabul qiladi.
+"""
+                                }
+                            ]
+                        )
+
+                    st.session_state["ai_mrt_text_result"] = response.choices[0].message.content
+
+                except Exception as e:
+                    st.error(f"❌ AI tahlilida xatolik yuz berdi: {e}")
+
+        if "ai_mrt_text_result" in st.session_state:
+
+            st.subheader("🤖 MedLab AI — MRT/MSKT xulosa tahlili")
+            st.markdown(st.session_state["ai_mrt_text_result"])
+
+            st.info(
+                "ℹ️ AI xulosasi faqat radiolog tomonidan yozilgan matn asosida "
+                "tuzilgan. Tasvirning o'zi ko'rilmagan. Yakuniy tashxis va "
+                "davolash qarorini shifokor belgilaydi."
+            )
+
+    # ----------------------------------------------------
+    # RASM REJIMI — vision modeliga tasvirni yuborish
+    # ----------------------------------------------------
+    else:
+
+        uploaded_scan = st.file_uploader(
+            "MRT/MSKT tasvirini yuklang (JPG, PNG)",
+            type=["jpg", "jpeg", "png"]
+        )
+
+        st.caption(
+            "⚠️ Diqqat: bu vision-AI modeli, radiolog emas. DICOM fayllarni "
+            "avval JPG/PNG formatiga o'tkazish kerak. Model faqat "
+            "ko'rinadigan tasvir asosida ehtimoliy izohlar beradi."
+        )
+
+        if uploaded_scan is not None:
+            st.image(uploaded_scan, caption="Yuklangan tasvir", use_container_width=True)
+
+        if st.button("🤖 Tasvirni AI vision yordamida tahlil qilish", key="mrt_image_ai_btn"):
+
+            if uploaded_scan is None:
+                st.warning("⚠️ Avval tasvir faylini yuklang.")
+            else:
+                try:
+                    client = Groq(
+                        api_key=st.secrets["GROQ_API_KEY"]
+                    )
+
+                    img_bytes = uploaded_scan.getvalue()
+                    b64_image = base64.b64encode(img_bytes).decode("utf-8")
+                    mime = uploaded_scan.type or "image/jpeg"
+
+                    prompt_text = f"""
+Siz MedLab AI Diagnostics klinik qarorlarni qo'llab-quvvatlash tizimisiz.
+
+Tekshiruv turi: {scan_type}
+Qo'shimcha kontekst: {scan_area_note or "Ko'rsatilmagan"}
+Bemor: {age} yosh, {sex}
+Shikoyatlar: {complaints or "Ko'rsatilmagan"}
+
+Ilova qilingan MRT/MSKT tasvirini ko'rib chiqing va klinik nuqtai
+nazardan ehtiyotkorlik bilan tavsiflab bering.
+
+Javobni O'ZBEK TILIDA quyidagi tartibda bering:
+
+1. 📊 Tasvirda ko'rinayotgan umumiy manzara
+2. 🔎 Diqqatga sazovor topilmalar (agar bo'lsa)
+3. 🧩 Ehtimoliy klinik yo'nalishlar
+4. 💡 Tavsiya etiladigan keyingi tekshiruv/konsultatsiyalar
+5. 👨‍⚕️ Shifokor uchun qisqa xulosa
+
+MUHIM CHEKLOVLAR:
+- Siz radiolog emassiz, faqat yordamchi AI vision vositasisiz.
+- Tasvir sifati, proyeksiyasi va kontrast yo'qligi tufayli xato
+  ehtimoli borligini aniq ta'kidlang.
+- Yakuniy tashxisni hech qachon qat'iy tasdiqlamang.
+- Har doim malakali radiolog/shifokor tomonidan rasmiy tekshiruv
+  zarurligini ta'kidlang.
+"""
+
+                    with st.spinner("🧠 AI tasvirni vision orqali tahlil qilmoqda..."):
+
+                        response = client.chat.completions.create(
+                            model="qwen/qwen3.6-27b",
+                            messages=[
+                                {
+                                    "role": "user",
+                                    "content": [
+                                        {"type": "text", "text": prompt_text},
+                                        {
+                                            "type": "image_url",
+                                            "image_url": {
+                                                "url": f"data:{mime};base64,{b64_image}"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        )
+
+                    st.session_state["ai_mrt_image_result"] = response.choices[0].message.content
+
+                except Exception as e:
+                    st.error(
+                        f"❌ AI vision tahlilida xatolik yuz berdi: {e}\n\n"
+                        "Eslatma: Groq'ning vision modeli nomi vaqt o'tishi bilan "
+                        "o'zgarishi mumkin — Groq konsolidan joriy model nomini "
+                        "tekshiring va kerak bo'lsa kodda yangilang."
+                    )
+
+        if "ai_mrt_image_result" in st.session_state:
+
+            st.subheader("🤖 MedLab AI — MRT/MSKT tasvir tahlili")
+            st.markdown(st.session_state["ai_mrt_image_result"])
+
+            st.info(
+                "ℹ️ AI vision xulosasi faqat yuklangan tasvir asosida tuzilgan "
+                "dastlabki, ehtimoliy izoh hisoblanadi. Rasmiy radiologik "
+                "xulosa va yakuniy tashxis malakali shifokor tomonidan "
+                "belgilanadi."
+            )
 
 st.caption(
     "⚠️ MedLab AI Diagnostics — klinik qarorlarni qo'llab-quvvatlovchi "
