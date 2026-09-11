@@ -28,6 +28,7 @@ def ai_text_analysis(prompt):
         client = get_groq_client()
         response = client.chat.completions.create(
             model=TEXT_MODEL,
+            max_tokens=900,
             messages=[{"role": "user", "content": prompt}]
         )
         return response.choices[0].message.content, None
@@ -44,6 +45,7 @@ def ai_image_analysis(image_file, prompt):
         mime = image_file.type or "image/jpeg"
         response = client.chat.completions.create(
             model=VISION_MODEL,
+            max_tokens=900,
             messages=[{
                 "role": "user",
                 "content": [
@@ -1188,6 +1190,7 @@ Tizim tomonidan aniqlangan og'ishlar:
 
                     response = client.chat.completions.create(
                         model="openai/gpt-oss-120b",
+                        max_tokens=900,
                         messages=[
                             {
                                 "role": "user",
@@ -1346,6 +1349,7 @@ elif analysis_type == "🧬 Biokimyoviy qon tahlili":
 
                 response = client.chat.completions.create(
                     model="openai/gpt-oss-120b",
+                    max_tokens=900,
                     messages=[
                         {
                             "role": "user",
@@ -1609,6 +1613,7 @@ elif analysis_type == "🧠 MRT / MSKT — Tasvir tahlili":
 
                         response = client.chat.completions.create(
                             model="openai/gpt-oss-120b",
+                            max_tokens=900,
                             messages=[
                                 {
                                     "role": "user",
@@ -1725,6 +1730,7 @@ MUHIM CHEKLOVLAR:
 
                         response = client.chat.completions.create(
                             model="qwen/qwen3.6-27b",
+                            max_tokens=900,
                             messages=[
                                 {
                                     "role": "user",
