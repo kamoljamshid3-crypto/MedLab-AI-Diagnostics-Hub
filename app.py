@@ -13,7 +13,10 @@ import base64
 # ============================================================
 
 TEXT_MODEL = "openai/gpt-oss-120b"
-VISION_MODEL = "qwen/qwen3.6-27b"  # Note: Groq vision model names change often — verify in console
+# Groq vision models, tried in order — if the first is unavailable/unauthorized
+# on your account, the code automatically falls back to the next one.
+# Verify current model access in the Groq console: Settings -> Model Permissions.
+VISION_MODELS = ["qwen/qwen3.6-27b", "qwen/qwen3.8-27b"]
 
 # ============================================================
 # LANGUAGE / TRANSLATION SYSTEM
@@ -847,26 +850,40 @@ def ai_text_analysis(prompt):
 
 
 def ai_image_analysis(image_file, prompt):
-    """Returns an AI vision clinical analysis based on an uploaded image: (result, error)."""
-    try:
-        client = get_groq_client()
-        img_bytes = image_file.getvalue()
-        b64_image = base64.b64encode(img_bytes).decode("utf-8")
-        mime = image_file.type or "image/jpeg"
-        response = client.chat.completions.create(
-            model=VISION_MODEL,
-            max_tokens=900,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64_image}"}}
-                ]
-            }]
-        )
-        return response.choices[0].message.content, None
-    except Exception as e:
-        return None, str(e)
+    """Returns an AI vision clinical analysis based on an uploaded image: (result, error).
+
+    Tries each model in VISION_MODELS in order — if one is unavailable or the
+    account lacks access to it (404 / model_not_found), it automatically
+    falls back to the next model instead of failing outright.
+    """
+    client = get_groq_client()
+    img_bytes = image_file.getvalue()
+    b64_image = base64.b64encode(img_bytes).decode("utf-8")
+    mime = image_file.type or "image/jpeg"
+
+    last_error = None
+    for model_id in VISION_MODELS:
+        try:
+            response = client.chat.completions.create(
+                model=model_id,
+                max_tokens=900,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64_image}"}}
+                    ]
+                }]
+            )
+            return response.choices[0].message.content, None
+        except Exception as e:
+            last_error = str(e)
+            # If the error indicates the model doesn't exist / no access, try the next one.
+            # For any other kind of error (network, rate limit, etc.) also fall through
+            # to the next model as a best-effort retry, but keep the last message.
+            continue
+
+    return None, last_error
 
 
 def render_ai_result(session_key, header=None, note=None):
@@ -2262,14 +2279,7 @@ Important:
             if uploaded_scan is None:
                 st.warning(t("mrt_no_image_warning"))
             else:
-                try:
-                    client = get_groq_client()
-
-                    img_bytes = uploaded_scan.getvalue()
-                    b64_image = base64.b64encode(img_bytes).decode("utf-8")
-                    mime = uploaded_scan.type or "image/jpeg"
-
-                    prompt_text = f"""
+                prompt_text = f"""
 You are the MedLab AI Diagnostics clinical decision support system.
 
 Examination type: {scan_type}
@@ -2294,31 +2304,13 @@ IMPORTANT LIMITATIONS:
 - Always emphasize the need for a formal examination by a qualified radiologist/physician.
 """
 
-                    with st.spinner(t("mrt_vision_spinner")):
+                with st.spinner(t("mrt_vision_spinner")):
+                    mrt_image_result, mrt_image_err = ai_image_analysis(uploaded_scan, prompt_text)
 
-                        response = client.chat.completions.create(
-                            model=VISION_MODEL,
-                            max_tokens=900,
-                            messages=[
-                                {
-                                    "role": "user",
-                                    "content": [
-                                        {"type": "text", "text": prompt_text},
-                                        {
-                                            "type": "image_url",
-                                            "image_url": {
-                                                "url": f"data:{mime};base64,{b64_image}"
-                                            }
-                                        }
-                                    ]
-                                }
-                            ]
-                        )
-
-                    st.session_state["ai_mrt_image_result"] = response.choices[0].message.content
-
-                except Exception as e:
-                    st.error(t("mrt_vision_error", err=e))
+                if mrt_image_err:
+                    st.error(t("mrt_vision_error", err=mrt_image_err))
+                else:
+                    st.session_state["ai_mrt_image_result"] = mrt_image_result
 
         if "ai_mrt_image_result" in st.session_state:
 
